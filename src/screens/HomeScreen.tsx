@@ -13,6 +13,7 @@ import QRCode from 'react-native-qrcode-svg';
 import {Button} from '../components/Button';
 import {Card} from '../components/Card';
 import {FriendItem} from '../components/FriendItem';
+import {ScannerScreen} from './ScannerScreen';
 import {OfflinkFriend, OfflinkProfile} from '../models/types';
 import {makeQrPayload, makeShortId, parseFriendInput} from '../services/FriendService';
 import {
@@ -27,6 +28,7 @@ export function HomeScreen() {
   const [savedProfile, setSavedProfile] = useState<OfflinkProfile | null>(null);
   const [friendInput, setFriendInput] = useState('');
   const [friends, setFriends] = useState<OfflinkFriend[]>([]);
+  const [isScanning, setIsScanning] = useState(false);
 
   const qrValue = useMemo(() => {
     return savedProfile ? makeQrPayload(savedProfile) : '';
@@ -70,8 +72,8 @@ export function HomeScreen() {
     await saveFriends(nextFriends);
   }
 
-  async function handleAddFriend() {
-    const friend = parseFriendInput(friendInput);
+  async function addFriendFromValue(value: string) {
+    const friend = parseFriendInput(value);
 
     if (!friend) {
       Alert.alert(
@@ -95,11 +97,29 @@ export function HomeScreen() {
 
     await handleSaveFriends([...friends, friend]);
     setFriendInput('');
+    setIsScanning(false);
+  }
+
+  async function handleAddFriend() {
+    await addFriendFromValue(friendInput);
+  }
+
+  async function handleScannedFriend(value: string) {
+    await addFriendFromValue(value);
   }
 
   async function handleRemoveFriend(userId: string) {
     const nextFriends = friends.filter(friend => friend.userId !== userId);
     await handleSaveFriends(nextFriends);
+  }
+
+  if (isScanning) {
+    return (
+      <ScannerScreen
+        onClose={() => setIsScanning(false)}
+        onScanned={handleScannedFriend}
+      />
+    );
   }
 
   return (
@@ -167,6 +187,10 @@ export function HomeScreen() {
           />
 
           <Button label="Add Friend" onPress={handleAddFriend} />
+
+          <View style={styles.scanButtonWrap}>
+            <Button label="Scan QR" onPress={() => setIsScanning(true)} />
+          </View>
         </Card>
 
         <Card>
@@ -260,6 +284,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginTop: 4,
+  },
+  scanButtonWrap: {
+    marginTop: 12,
   },
   qrBox: {
     alignSelf: 'center',
