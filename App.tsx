@@ -1,131 +1,208 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
-  ScrollView,
-  StatusBar,
+  SafeAreaView,
   StyleSheet,
   Text,
-  useColorScheme,
+  TextInput,
+  TouchableOpacity,
   View,
+  StatusBar,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import 'react-native-get-random-values';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+const PROFILE_KEY = 'offlink_profile';
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+type OfflinkProfile = {
+  nickname: string;
+  userId: string;
+};
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
+function makeShortId() {
+  return 'OL-' + Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+export default function App() {
+  const [nickname, setNickname] = useState('');
+  const [savedProfile, setSavedProfile] = useState<OfflinkProfile | null>(null);
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
+  useEffect(() => {
+    loadProfile();
+  }, []);
 
-  /*
-   * To keep the template simple and small we're adding padding to prevent view
-   * from rendering under the System UI.
-   * For bigger apps the recommendation is to use `react-native-safe-area-context`:
-   * https://github.com/AppAndFlow/react-native-safe-area-context
-   *
-   * You can read more about it here:
-   * https://github.com/react-native-community/discussions-and-proposals/discussions/827
-   */
-  const safePadding = '5%';
+  async function loadProfile() {
+    const raw = await AsyncStorage.getItem(PROFILE_KEY);
+    if (raw) {
+      const profile = JSON.parse(raw) as OfflinkProfile;
+      setSavedProfile(profile);
+      setNickname(profile.nickname);
+    }
+  }
+
+  async function saveProfile() {
+    const trimmedName = nickname.trim();
+
+    if (!trimmedName) {
+      return;
+    }
+
+    const profile: OfflinkProfile = {
+      nickname: trimmedName,
+      userId: savedProfile?.userId || makeShortId(),
+    };
+
+    await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+    setSavedProfile(profile);
+  }
 
   return (
-    <View style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        style={backgroundStyle}>
-        <View style={{paddingRight: safePadding}}>
-          <Header/>
-        </View>
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-            paddingHorizontal: safePadding,
-            paddingBottom: safePadding,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </View>
+    <SafeAreaView style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor="#050505" />
+
+      <View style={styles.header}>
+        <Text style={styles.logo}>OFFLINK</Text>
+        <Text style={styles.tagline}>Find your friends. No signal needed.</Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Your offline profile</Text>
+
+        <TextInput
+          style={styles.input}
+          value={nickname}
+          onChangeText={setNickname}
+          placeholder="Enter nickname"
+          placeholderTextColor="#777"
+        />
+
+        <TouchableOpacity style={styles.button} onPress={saveProfile}>
+          <Text style={styles.buttonText}>Save Profile</Text>
+        </TouchableOpacity>
+
+        {savedProfile ? (
+          <View style={styles.profileBox}>
+            <Text style={styles.label}>Nickname</Text>
+            <Text style={styles.value}>{savedProfile.nickname}</Text>
+
+            <Text style={styles.label}>Offlink ID</Text>
+            <Text style={styles.value}>{savedProfile.userId}</Text>
+          </View>
+        ) : (
+          <Text style={styles.helper}>
+            This ID will be used later for QR friend adding and Bluetooth discovery.
+          </Text>
+        )}
+      </View>
+
+      <View style={styles.footerCard}>
+        <Text style={styles.footerTitle}>MVP path</Text>
+        <Text style={styles.footerText}>1. Save profile</Text>
+        <Text style={styles.footerText}>2. Add friends by QR</Text>
+        <Text style={styles.footerText}>3. Detect nearby friends over Bluetooth</Text>
+        <Text style={styles.footerText}>4. Share sightings phone-to-phone</Text>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  screen: {
+    flex: 1,
+    backgroundColor: '#050505',
+    padding: 20,
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
+  header: {
+    marginTop: 28,
+    marginBottom: 24,
   },
-  sectionDescription: {
+  logo: {
+    color: '#ffffff',
+    fontSize: 42,
+    fontWeight: '900',
+    letterSpacing: 3,
+  },
+  tagline: {
+    color: '#bdbdbd',
+    fontSize: 16,
     marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
   },
-  highlight: {
-    fontWeight: '700',
+  card: {
+    backgroundColor: '#151515',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#303030',
+  },
+  cardTitle: {
+    color: '#ffffff',
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 16,
+  },
+  input: {
+    backgroundColor: '#050505',
+    borderWidth: 1,
+    borderColor: '#444',
+    borderRadius: 16,
+    color: '#ffffff',
+    fontSize: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 14,
+  },
+  button: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#050505',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  profileBox: {
+    marginTop: 18,
+    backgroundColor: '#0b0b0b',
+    borderRadius: 18,
+    padding: 16,
+  },
+  label: {
+    color: '#888',
+    fontSize: 13,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: 8,
+  },
+  value: {
+    color: '#ffffff',
+    fontSize: 22,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  helper: {
+    color: '#aaa',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 16,
+  },
+  footerCard: {
+    marginTop: 18,
+    backgroundColor: '#101010',
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#252525',
+  },
+  footerTitle: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 18,
+    marginBottom: 10,
+  },
+  footerText: {
+    color: '#bbb',
+    fontSize: 15,
+    marginBottom: 6,
   },
 });
-
-export default App;
