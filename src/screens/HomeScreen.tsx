@@ -23,7 +23,11 @@ import {
 } from '../services/StorageService';
 import {ALL_EMOJIS} from '../data/emojis';
 
-export function HomeScreen() {
+export function HomeScreen({
+  onShowNearby,
+}: {
+  onShowNearby?: () => void;
+}) {
   const [selectedEmoji, setSelectedEmoji] = useState('');
   const [emojiChoices, setEmojiChoices] = useState<string[]>([]);
   const [savedProfile, setSavedProfile] = useState<OfflinkProfile | null>(null);
@@ -147,6 +151,14 @@ export function HomeScreen() {
         </View>
 
         <Card>
+          <Text style={styles.cardTitle}>Nearby test</Text>
+          <Button
+            label="📡 Show Nearby Users"
+            onPress={() => onShowNearby?.()}
+          />
+        </Card>
+
+        <Card>
           <Text style={styles.cardTitle}>Your emoji identity</Text>
 
           {savedProfile && !isEditingProfile ? (
@@ -217,6 +229,13 @@ export function HomeScreen() {
           <Text style={styles.cardTitle}>Add friend</Text>
 
           <Button label="Scan QR to Add Friend" onPress={() => setIsScanning(true)} />
+
+          <View style={{height: 12}} />
+
+          <Button
+            label="Show Nearby Users"
+            onPress={() => onShowNearby?.()}
+          />
 
           <Text style={styles.helper}>
             Scan your friend's QR code to add them.
