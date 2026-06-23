@@ -1,7 +1,9 @@
 import {PermissionsAndroid, Platform} from 'react-native';
+import {BleManager} from 'react-native-ble-plx';
 import {OfflinkProfile, NearbyOfflinkUser} from '../models/types';
 
 const BLE_APP_PREFIX = 'OL';
+const bleManager = new BleManager();
 
 export function makeBlePayload(profile: OfflinkProfile): string {
   return [
@@ -47,4 +49,31 @@ export async function requestBlePermissions(): Promise<boolean> {
     result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] === 'granted' &&
     result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE] === 'granted'
   );
+}
+
+
+export async function startBleScanTest(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    let seenCount = 0;
+
+    try {
+      bleManager.startDeviceScan(null, null, error => {
+        if (error) {
+          bleManager.stopDeviceScan();
+          reject(error);
+          return;
+        }
+
+        seenCount += 1;
+      });
+
+      setTimeout(() => {
+        bleManager.stopDeviceScan();
+        resolve(seenCount);
+      }, 10000);
+    } catch (error) {
+      bleManager.stopDeviceScan();
+      reject(error);
+    }
+  });
 }

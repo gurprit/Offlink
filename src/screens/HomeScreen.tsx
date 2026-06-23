@@ -15,7 +15,7 @@ import {FriendItem} from '../components/FriendItem';
 import {ScannerScreen} from './ScannerScreen';
 import {OfflinkFriend, OfflinkProfile} from '../models/types';
 import {makeQrPayload, makeShortId, parseFriendInput} from '../services/FriendService';
-import {requestBlePermissions} from '../services/BleService';
+import {requestBlePermissions, startBleScanTest} from '../services/BleService';
 import {
   loadFriends,
   loadProfile,
@@ -141,6 +141,16 @@ export function HomeScreen({
     );
   }
 
+  async function handleStartBleScanTest() {
+    try {
+      const seenCount = await startBleScanTest();
+
+      Alert.alert('BLE scan test', `Scan finished. Saw ${seenCount} BLE results.`);
+    } catch (error) {
+      Alert.alert('BLE scan failed', String(error));
+    }
+  }
+
   if (isScanning) {
     return (
       <ScannerScreen
@@ -172,6 +182,13 @@ export function HomeScreen({
           <Button
             label="Request BLE Permissions"
             onPress={handleRequestBlePermissions}
+          />
+
+          <View style={{height: 12}} />
+
+          <Button
+            label="Start BLE Scan Test"
+            onPress={handleStartBleScanTest}
           />
         </Card>
 
