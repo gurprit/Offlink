@@ -1,8 +1,15 @@
 import {PermissionsAndroid, Platform} from 'react-native';
 import {BleManager} from 'react-native-ble-plx';
+import BLEAdvertiser from 'react-native-ble-advertiser';
 import {OfflinkProfile, NearbyOfflinkUser} from '../models/types';
 
 const BLE_APP_PREFIX = 'OL';
+const OFFLINK_COMPANY_ID = 0x1234;
+const OFFLINK_SERVICE_UUID = '0000feed-0000-1000-8000-00805f9b34fb';
+
+function stringToByteArray(value: string): number[] {
+  return Array.from(value).map(char => char.charCodeAt(0));
+}
 const bleManager = new BleManager();
 
 export function makeBlePayload(profile: OfflinkProfile): string {
@@ -76,4 +83,25 @@ export async function startBleScanTest(): Promise<number> {
       reject(error);
     }
   });
+}
+
+
+export async function startBleBroadcastTest(): Promise<void> {
+  BLEAdvertiser.setCompanyId(OFFLINK_COMPANY_ID);
+
+  await BLEAdvertiser.broadcast(
+    OFFLINK_SERVICE_UUID,
+    stringToByteArray('OL|TEST|LION'),
+    {
+      advertiseMode: 2,
+      txPowerLevel: 3,
+      connectable: false,
+      includeDeviceName: false,
+      includeTxPowerLevel: false,
+    },
+  );
+}
+
+export async function stopBleBroadcastTest(): Promise<void> {
+  await BLEAdvertiser.stopBroadcast();
 }

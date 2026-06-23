@@ -15,7 +15,7 @@ import {FriendItem} from '../components/FriendItem';
 import {ScannerScreen} from './ScannerScreen';
 import {OfflinkFriend, OfflinkProfile} from '../models/types';
 import {makeQrPayload, makeShortId, parseFriendInput} from '../services/FriendService';
-import {requestBlePermissions, startBleScanTest} from '../services/BleService';
+import {requestBlePermissions, startBleScanTest, startBleBroadcastTest, stopBleBroadcastTest} from '../services/BleService';
 import {
   loadFriends,
   loadProfile,
@@ -151,6 +151,24 @@ export function HomeScreen({
     }
   }
 
+  async function handleStartBleBroadcastTest() {
+    try {
+      await startBleBroadcastTest();
+      Alert.alert('BLE broadcast test', 'Broadcast started.');
+    } catch (error) {
+      Alert.alert('BLE broadcast failed', String(error));
+    }
+  }
+
+  async function handleStopBleBroadcastTest() {
+    try {
+      await stopBleBroadcastTest();
+      Alert.alert('BLE broadcast test', 'Broadcast stopped.');
+    } catch (error) {
+      Alert.alert('Stop broadcast failed', String(error));
+    }
+  }
+
   if (isScanning) {
     return (
       <ScannerScreen
@@ -189,6 +207,20 @@ export function HomeScreen({
           <Button
             label="Start BLE Scan Test"
             onPress={handleStartBleScanTest}
+          />
+
+          <View style={{height: 12}} />
+
+          <Button
+            label="Start BLE Broadcast Test"
+            onPress={handleStartBleBroadcastTest}
+          />
+
+          <View style={{height: 12}} />
+
+          <Button
+            label="Stop BLE Broadcast Test"
+            onPress={handleStopBleBroadcastTest}
           />
         </Card>
 
