@@ -8,3 +8,9 @@ export type OfflinkFriend = {
   emoji: string;
   addedAt: number;
 };
+
+export type NearbyOfflinkUser = {
+  userId: string;
+  emoji: string;
+  lastSeenAt: number;
+};
