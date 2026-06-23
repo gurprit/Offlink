@@ -1,0 +1,56 @@
+diff --git a/node_modules/react-native-ble-advertiser/README.md b/node_modules/react-native-ble-advertiser/README.md
+old mode 100644
+new mode 100755
+diff --git a/node_modules/react-native-ble-advertiser/android/.project b/node_modules/react-native-ble-advertiser/android/.project
+old mode 100644
+new mode 100755
+diff --git a/node_modules/react-native-ble-advertiser/android/build.gradle b/node_modules/react-native-ble-advertiser/android/build.gradle
+old mode 100644
+new mode 100755
+index 2526548..133dea4
+--- a/node_modules/react-native-ble-advertiser/android/build.gradle
++++ b/node_modules/react-native-ble-advertiser/android/build.gradle
+@@ -1,8 +1,8 @@
+ apply plugin: 'com.android.library'
+ 
+ android {
+-    compileSdkVersion 28
+-    buildToolsVersion "28.0.3"
++    compileSdkVersion rootProject.ext.compileSdkVersion
++    buildToolsVersion rootProject.ext.buildToolsVersion
+ 
+     defaultConfig {
+         minSdkVersion 21
+diff --git a/node_modules/react-native-ble-advertiser/android/src/main/AndroidManifest.xml b/node_modules/react-native-ble-advertiser/android/src/main/AndroidManifest.xml
+old mode 100644
+new mode 100755
+diff --git a/node_modules/react-native-ble-advertiser/android/src/main/java/com/vitorpamplona/bleadvertiser/BLEAdvertiserModule.java b/node_modules/react-native-ble-advertiser/android/src/main/java/com/vitorpamplona/bleadvertiser/BLEAdvertiserModule.java
+old mode 100644
+new mode 100755
+diff --git a/node_modules/react-native-ble-advertiser/android/src/main/java/com/vitorpamplona/bleadvertiser/BLEAdvertiserPackage.java b/node_modules/react-native-ble-advertiser/android/src/main/java/com/vitorpamplona/bleadvertiser/BLEAdvertiserPackage.java
+old mode 100644
+new mode 100755
+diff --git a/node_modules/react-native-ble-advertiser/index.d.ts b/node_modules/react-native-ble-advertiser/index.d.ts
+old mode 100644
+new mode 100755
+diff --git a/node_modules/react-native-ble-advertiser/index.js b/node_modules/react-native-ble-advertiser/index.js
+old mode 100644
+new mode 100755
+diff --git a/node_modules/react-native-ble-advertiser/ios/BLEAdvertiser.h b/node_modules/react-native-ble-advertiser/ios/BLEAdvertiser.h
+old mode 100644
+new mode 100755
+diff --git a/node_modules/react-native-ble-advertiser/ios/BLEAdvertiser.m b/node_modules/react-native-ble-advertiser/ios/BLEAdvertiser.m
+old mode 100644
+new mode 100755
+diff --git a/node_modules/react-native-ble-advertiser/ios/BLEAdvertiser.xcodeproj/project.pbxproj b/node_modules/react-native-ble-advertiser/ios/BLEAdvertiser.xcodeproj/project.pbxproj
+old mode 100644
+new mode 100755
+diff --git a/node_modules/react-native-ble-advertiser/ios/BLEAdvertiser.xcworkspace/contents.xcworkspacedata b/node_modules/react-native-ble-advertiser/ios/BLEAdvertiser.xcworkspace/contents.xcworkspacedata
+old mode 100644
+new mode 100755
+diff --git a/node_modules/react-native-ble-advertiser/ios/react-native-ble-advertiser.podspec b/node_modules/react-native-ble-advertiser/ios/react-native-ble-advertiser.podspec
+old mode 100644
+new mode 100755
+diff --git a/node_modules/react-native-ble-advertiser/react-native.config.js b/node_modules/react-native-ble-advertiser/react-native.config.js
+old mode 100644
+new mode 100755
