@@ -15,6 +15,7 @@ import {FriendItem} from '../components/FriendItem';
 import {ScannerScreen} from './ScannerScreen';
 import {OfflinkFriend, OfflinkProfile} from '../models/types';
 import {makeQrPayload, makeShortId, parseFriendInput} from '../services/FriendService';
+import {requestBlePermissions} from '../services/BleService';
 import {
   loadFriends,
   loadProfile,
@@ -131,6 +132,15 @@ export function HomeScreen({
     await handleSaveFriends(nextFriends);
   }
 
+  async function handleRequestBlePermissions() {
+    const granted = await requestBlePermissions();
+
+    Alert.alert(
+      'BLE permissions',
+      granted ? 'Bluetooth permissions granted.' : 'Bluetooth permissions were not granted.',
+    );
+  }
+
   if (isScanning) {
     return (
       <ScannerScreen
@@ -155,6 +165,13 @@ export function HomeScreen({
           <Button
             label="📡 Show Nearby Users"
             onPress={() => onShowNearby?.()}
+          />
+
+          <View style={{height: 12}} />
+
+          <Button
+            label="Request BLE Permissions"
+            onPress={handleRequestBlePermissions}
           />
         </Card>
 
