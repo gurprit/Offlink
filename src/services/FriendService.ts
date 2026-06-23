@@ -1,5 +1,7 @@
 import {OfflinkFriend, OfflinkProfile} from '../models/types';
 
+const DEFAULT_EMOJI = '🙂';
+
 export function makeShortId() {
   return 'OL-' + Math.random().toString(36).slice(2, 8).toUpperCase();
 }
@@ -8,9 +10,9 @@ export function makeQrPayload(profile: OfflinkProfile) {
   return JSON.stringify({
     app: 'offlink',
     type: 'profile',
-    version: 1,
+    version: 2,
     userId: profile.userId,
-    nickname: profile.nickname,
+    emoji: profile.emoji || DEFAULT_EMOJI,
   });
 }
 
@@ -27,27 +29,16 @@ export function parseFriendInput(input: string): OfflinkFriend | null {
     if (
       parsed?.app === 'offlink' &&
       parsed?.type === 'profile' &&
-      typeof parsed.userId === 'string' &&
-      typeof parsed.nickname === 'string'
+      typeof parsed.userId === 'string'
     ) {
       return {
         userId: parsed.userId,
-        nickname: parsed.nickname,
+        emoji: typeof parsed.emoji === 'string' && parsed.emoji ? parsed.emoji : DEFAULT_EMOJI,
         addedAt: Date.now(),
       };
     }
   } catch {
-    // Manual fallback below.
-  }
-
-  const parts = trimmed.split('|').map(part => part.trim());
-
-  if (parts.length === 2 && parts[0] && parts[1]) {
-    return {
-      userId: parts[0],
-      nickname: parts[1],
-      addedAt: Date.now(),
-    };
+    return null;
   }
 
   return null;

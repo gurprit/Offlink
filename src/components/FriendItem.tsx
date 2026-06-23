@@ -10,8 +10,10 @@ type FriendItemProps = {
 export function FriendItem({friend, onRemove}: FriendItemProps) {
   return (
     <View style={styles.friendRow}>
+      <Text style={styles.friendEmoji}>{friend.emoji}</Text>
+
       <View style={styles.friendTextWrap}>
-        <Text style={styles.friendName}>{friend.nickname}</Text>
+        <Text style={styles.friendName}>Emoji friend</Text>
         <Text style={styles.friendId}>{friend.userId}</Text>
       </View>
 
@@ -35,6 +37,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  friendEmoji: {
+    fontSize: 38,
+    marginRight: 12,
   },
   friendTextWrap: {
     flex: 1,

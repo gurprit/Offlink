@@ -1,10 +1,10 @@
 export type OfflinkProfile = {
-  nickname: string;
   userId: string;
+  emoji: string;
 };
 
 export type OfflinkFriend = {
-  nickname: string;
   userId: string;
+  emoji: string;
   addedAt: number;
 };

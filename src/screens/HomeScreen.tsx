@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
   StatusBar,
 } from 'react-native';
@@ -22,11 +21,13 @@ import {
   saveFriends,
   saveProfile as persistProfile,
 } from '../services/StorageService';
+import {ALL_EMOJIS} from '../data/emojis';
 
 export function HomeScreen() {
-  const [nickname, setNickname] = useState('');
+  const [selectedEmoji, setSelectedEmoji] = useState('');
+  const [emojiChoices, setEmojiChoices] = useState<string[]>([]);
   const [savedProfile, setSavedProfile] = useState<OfflinkProfile | null>(null);
-  const [friendInput, setFriendInput] = useState('');
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [friends, setFriends] = useState<OfflinkFriend[]>([]);
   const [isScanning, setIsScanning] = useState(false);
 
@@ -34,14 +35,24 @@ export function HomeScreen() {
     return savedProfile ? makeQrPayload(savedProfile) : '';
   }, [savedProfile]);
 
+  function generateEmojiChoices() {
+    const shuffled = [...ALL_EMOJIS].sort(() => Math.random() - 0.5);
+    setEmojiChoices(shuffled.slice(0, 10));
+  }
+
   useEffect(() => {
     async function initialise() {
       const profile = await loadProfile();
       const savedFriends = await loadFriends();
 
+      generateEmojiChoices();
+
       if (profile) {
         setSavedProfile(profile);
-        setNickname(profile.nickname);
+        setSelectedEmoji(profile.emoji || '');
+        setIsEditingProfile(false);
+      } else {
+        setIsEditingProfile(true);
       }
 
       setFriends(savedFriends);
@@ -51,20 +62,28 @@ export function HomeScreen() {
   }, []);
 
   async function handleSaveProfile() {
-    const trimmedName = nickname.trim();
-
-    if (!trimmedName) {
-      Alert.alert('Nickname needed', 'Enter a nickname before saving.');
+    if (!selectedEmoji) {
+      Alert.alert('Choose an emoji', 'Select an emoji identity before saving.');
       return;
     }
 
     const profile: OfflinkProfile = {
-      nickname: trimmedName,
       userId: savedProfile?.userId || makeShortId(),
+      emoji: selectedEmoji,
     };
 
     await persistProfile(profile);
     setSavedProfile(profile);
+    setIsEditingProfile(false);
+  }
+
+  function handleEditProfile() {
+    if (savedProfile) {
+      setSelectedEmoji(savedProfile.emoji || '');
+    }
+
+    generateEmojiChoices();
+    setIsEditingProfile(true);
   }
 
   async function handleSaveFriends(nextFriends: OfflinkFriend[]) {
@@ -78,7 +97,7 @@ export function HomeScreen() {
     if (!friend) {
       Alert.alert(
         'Could not add friend',
-        'Paste an Offlink QR payload, or use this test format: OL-ABC123|Sam',
+        'This does not look like an Offlink QR code.',
       );
       return;
     }
@@ -91,17 +110,12 @@ export function HomeScreen() {
     const alreadyExists = friends.some(item => item.userId === friend.userId);
 
     if (alreadyExists) {
-      Alert.alert('Already added', `${friend.nickname} is already in your friends list.`);
+      Alert.alert('Already added', 'This friend is already in your friends list.');
       return;
     }
 
     await handleSaveFriends([...friends, friend]);
-    setFriendInput('');
     setIsScanning(false);
-  }
-
-  async function handleAddFriend() {
-    await addFriendFromValue(friendInput);
   }
 
   async function handleScannedFriend(value: string) {
@@ -133,64 +147,80 @@ export function HomeScreen() {
         </View>
 
         <Card>
-          <Text style={styles.cardTitle}>Your offline profile</Text>
+          <Text style={styles.cardTitle}>Your emoji identity</Text>
 
-          <TextInput
-            style={styles.input}
-            value={nickname}
-            onChangeText={setNickname}
-            placeholder="Enter nickname"
-            placeholderTextColor="#777"
-          />
+          {savedProfile && !isEditingProfile ? (
+            <View>
+              <View style={styles.profileBox}>
+                <Text style={styles.profileEmoji}>{savedProfile.emoji}</Text>
 
-          <Button label="Save Profile" onPress={handleSaveProfile} />
+                <Text style={styles.label}>Offlink ID</Text>
+                <Text style={styles.value}>{savedProfile.userId}</Text>
 
-          {savedProfile ? (
-            <View style={styles.profileBox}>
-              <Text style={styles.label}>Nickname</Text>
-              <Text style={styles.value}>{savedProfile.nickname}</Text>
+                <Text style={styles.helper}>
+                  Friends will see this emoji when they discover you nearby.
+                </Text>
+              </View>
 
-              <Text style={styles.label}>Offlink ID</Text>
-              <Text style={styles.value}>{savedProfile.userId}</Text>
+              <View style={styles.saveButtonWrap}>
+                <Button label="Change Emoji" onPress={handleEditProfile} />
+              </View>
             </View>
           ) : (
-            <Text style={styles.helper}>
-              This ID will be used for QR friend adding and Bluetooth discovery.
-            </Text>
+            <View>
+              <Text style={styles.helper}>
+                Pick one emoji. This is your identity on Offlink.
+              </Text>
+
+              <View style={styles.emojiGrid}>
+                {emojiChoices.map(emoji => (
+                  <Text
+                    key={emoji}
+                    style={[
+                      styles.emojiButton,
+                      selectedEmoji === emoji && styles.selectedEmoji,
+                    ]}
+                    onPress={() => setSelectedEmoji(emoji)}>
+                    {emoji}
+                  </Text>
+                ))}
+              </View>
+
+              <Button label="🎲 New Emoji Set" onPress={generateEmojiChoices} />
+
+              <View style={styles.saveButtonWrap}>
+                <Button label="Save Emoji Identity" onPress={handleSaveProfile} />
+              </View>
+
+              {savedProfile ? (
+                <View style={styles.saveButtonWrap}>
+                  <Button label="Cancel" onPress={() => setIsEditingProfile(false)} />
+                </View>
+              ) : null}
+            </View>
           )}
         </Card>
 
         {savedProfile ? (
           <Card>
-            <Text style={styles.cardTitle}>Your friend QR</Text>
+            <Text style={styles.cardTitle}>Your QR</Text>
 
             <View style={styles.qrBox}>
               <QRCode value={qrValue} size={190} backgroundColor="#ffffff" color="#050505" />
             </View>
 
-            <Text style={styles.helper}>
-              Camera scanning comes next. For now, this QR stores your Offlink profile data.
-            </Text>
+            <Text style={styles.helper}>Share this QR so friends can add you.</Text>
           </Card>
         ) : null}
 
         <Card>
           <Text style={styles.cardTitle}>Add friend</Text>
 
-          <TextInput
-            style={[styles.input, styles.multilineInput]}
-            value={friendInput}
-            onChangeText={setFriendInput}
-            placeholder="Paste QR payload or test with: OL-ABC123|Sam"
-            placeholderTextColor="#777"
-            multiline
-          />
+          <Button label="Scan QR to Add Friend" onPress={() => setIsScanning(true)} />
 
-          <Button label="Add Friend" onPress={handleAddFriend} />
-
-          <View style={styles.scanButtonWrap}>
-            <Button label="Scan QR" onPress={() => setIsScanning(true)} />
-          </View>
+          <Text style={styles.helper}>
+            Scan your friend's QR code to add them.
+          </Text>
         </Card>
 
         <Card>
@@ -245,26 +275,38 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 16,
   },
-  input: {
-    backgroundColor: '#050505',
-    borderWidth: 1,
-    borderColor: '#444',
-    borderRadius: 16,
-    color: '#ffffff',
-    fontSize: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 14,
+  emojiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginVertical: 12,
   },
-  multilineInput: {
-    minHeight: 96,
-    textAlignVertical: 'top',
+  emojiButton: {
+    fontSize: 34,
+    margin: 8,
+    padding: 8,
+  },
+  selectedEmoji: {
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    borderRadius: 12,
+  },
+  saveButtonWrap: {
+    marginTop: 12,
   },
   profileBox: {
-    marginTop: 18,
+    marginTop: 4,
     backgroundColor: '#0b0b0b',
     borderRadius: 18,
     padding: 16,
+  },
+  profileEmoji: {
+    width: '100%',
+    color: '#ffffff',
+    fontSize: 104,
+    lineHeight: 124,
+    textAlign: 'center',
+    marginBottom: 8,
   },
   label: {
     color: '#888',
@@ -284,9 +326,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginTop: 4,
-  },
-  scanButtonWrap: {
-    marginTop: 12,
+    textAlign: 'center',
   },
   qrBox: {
     alignSelf: 'center',
