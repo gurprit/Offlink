@@ -4,7 +4,7 @@ import 'react-native-get-random-values';
 import {HomeScreen} from './src/screens/HomeScreen';
 import {NearbyScreen} from './src/screens/NearbyScreen';
 import {NearbyOfflinkUser, OfflinkFriend} from './src/models/types';
-import {loadFriends, loadProfile} from './src/services/StorageService';
+import {loadFriends, loadProfile, saveFriends} from './src/services/StorageService';
 import {
   requestBlePermissions,
   startBleBroadcast,
@@ -21,6 +21,11 @@ export default function App() {
   useEffect(() => {
     let stopScan: (() => void) | null = null;
     let isMounted = true;
+    const staleUserTimer = setInterval(() => {
+      setNearbyUsers(currentUsers =>
+        currentUsers.filter(user => Date.now() - user.lastSeenAt < 30000),
+      );
+    }, 5000);
 
     async function initialise() {
       const savedFriends = await loadFriends();
@@ -70,6 +75,7 @@ export default function App() {
         stopScan();
       }
 
+      clearInterval(staleUserTimer);
       stopBleBroadcastTest().catch(() => {});
     };
   }, []);
@@ -86,7 +92,30 @@ export default function App() {
         currentUser => currentUser.userId !== user.userId,
       );
 
-      return [user, ...withoutExisting];
+      const nextUsers = [user, ...withoutExisting];
+
+      return nextUsers.filter(
+        item => Date.now() - item.lastSeenAt < 30000,
+      );
+    });
+
+    setFriends(currentFriends => {
+      const didFindFriend = currentFriends.some(
+        friend => friend.userId === user.userId,
+      );
+
+      if (!didFindFriend) {
+        return currentFriends;
+      }
+
+      const nextFriends = currentFriends.map(friend =>
+        friend.userId === user.userId
+          ? {...friend, emoji: user.emoji}
+          : friend,
+      );
+
+      saveFriends(nextFriends).catch(() => {});
+      return nextFriends;
     });
   }
 
@@ -94,6 +123,8 @@ export default function App() {
     return (
       <NearbyScreen
         nearbyUsers={nearbyFriends}
+        discoveredCount={nearbyUsers.length}
+        friendCount={friends.length}
         onBack={() => setShowNearby(false)}
       />
     );
