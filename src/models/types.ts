@@ -15,3 +15,13 @@ export type NearbyOfflinkUser = {
   lastSeenAt: number;
   rssi?: number;
 };
+
+
+export type OfflinkSighting = {
+  userId: string;
+  emoji: string;
+  lastSeenAt: number;
+  source: 'direct' | 'mesh';
+  rssi?: number;
+  hops?: number;
+};
