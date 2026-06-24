@@ -149,6 +149,7 @@ export default function App() {
         nearbyUsers={nearbyFriends}
         discoveredCount={nearbyUsers.length}
         friendCount={friends.length}
+        sightingCount={sightings.length}
         onBack={() => setShowNearby(false)}
       />
     );

@@ -52,11 +52,13 @@ export function NearbyScreen({
   nearbyUsers,
   discoveredCount,
   friendCount,
+  sightingCount,
   onBack,
 }: {
   nearbyUsers: NearbyOfflinkUser[];
   discoveredCount: number;
   friendCount: number;
+  sightingCount: number;
   onBack: () => void;
 }) {
   const [now, setNow] = useState(Date.now());
@@ -78,7 +80,7 @@ export function NearbyScreen({
       <View style={styles.spacer} />
 
       <Text style={styles.debug}>
-        Friends: {friendCount} · Discovered: {discoveredCount} · Nearby friends: {nearbyUsers.length}
+        Friends: {friendCount} · Discovered: {discoveredCount} · Sightings: {sightingCount} · Nearby friends: {nearbyUsers.length}
       </Text>
 
       <Text style={styles.sortHint}>
