@@ -3,8 +3,8 @@ import 'react-native-get-random-values';
 
 import {HomeScreen} from './src/screens/HomeScreen';
 import {NearbyScreen} from './src/screens/NearbyScreen';
-import {NearbyOfflinkUser, OfflinkFriend} from './src/models/types';
-import {loadFriends, loadProfile, saveFriends} from './src/services/StorageService';
+import {NearbyOfflinkUser, OfflinkFriend, OfflinkSighting} from './src/models/types';
+import {loadFriends, loadProfile, loadSightings, saveFriends, saveSightings} from './src/services/StorageService';
 import {
   requestBlePermissions,
   startBleBroadcast,
@@ -16,6 +16,7 @@ export default function App() {
   const [showNearby, setShowNearby] = useState(false);
   const [nearbyUsers, setNearbyUsers] = useState<NearbyOfflinkUser[]>([]);
   const [friends, setFriends] = useState<OfflinkFriend[]>([]);
+  const [sightings, setSightings] = useState<OfflinkSighting[]>([]);
   const [bleStatus, setBleStatus] = useState('BLE starting...');
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export default function App() {
 
     async function initialise() {
       const savedFriends = await loadFriends();
+      const savedSightings = await loadSightings();
       const savedProfile = await loadProfile();
 
       if (!isMounted) {
@@ -36,6 +38,7 @@ export default function App() {
       }
 
       setFriends(savedFriends);
+      setSightings(savedSightings);
 
       if (!savedProfile) {
         setBleStatus('Save an emoji identity to start BLE.');
@@ -97,6 +100,27 @@ export default function App() {
         .sort((a, b) => (b.rssi ?? -999) - (a.rssi ?? -999));
 
       return nextUsers;
+    });
+
+    setSightings(currentSightings => {
+      const directSighting: OfflinkSighting = {
+        userId: user.userId,
+        emoji: user.emoji,
+        lastSeenAt: user.lastSeenAt,
+        source: 'direct',
+        rssi: user.rssi,
+        hops: 0,
+      };
+
+      const nextSightings = [
+        directSighting,
+        ...currentSightings.filter(sighting => sighting.userId !== user.userId),
+      ]
+        .filter(sighting => Date.now() - sighting.lastSeenAt < 1000 * 60 * 60)
+        .sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+
+      saveSightings(nextSightings).catch(() => {});
+      return nextSightings;
     });
 
     setFriends(currentFriends => {
