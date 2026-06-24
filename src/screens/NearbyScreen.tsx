@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   SafeAreaView,
   StyleSheet,
@@ -24,6 +24,30 @@ function getProximityLabel(rssi?: number): string {
   return 'Far';
 }
 
+function getSignalBars(rssi?: number): string {
+  if (typeof rssi !== 'number') {
+    return '○○○○○';
+  }
+
+  if (rssi >= -50) {
+    return '●●●●●';
+  }
+
+  if (rssi >= -60) {
+    return '●●●●○';
+  }
+
+  if (rssi >= -70) {
+    return '●●●○○';
+  }
+
+  if (rssi >= -80) {
+    return '●●○○○';
+  }
+
+  return '●○○○○';
+}
+
 export function NearbyScreen({
   nearbyUsers,
   discoveredCount,
@@ -35,6 +59,16 @@ export function NearbyScreen({
   friendCount: number;
   onBack: () => void;
 }) {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <SafeAreaView style={styles.screen}>
       <Text style={styles.title}>Nearby Friends</Text>
@@ -59,6 +93,10 @@ export function NearbyScreen({
             <Text style={styles.emoji}>{user.emoji}</Text>
             <View>
               <Text style={styles.id}>{user.userId}</Text>
+              <Text style={styles.signal}>
+                {getSignalBars(user.rssi)}
+              </Text>
+
               <Text style={styles.meta}>
                 {getProximityLabel(user.rssi)}
                 {typeof user.rssi === 'number' ? ` (${user.rssi} dBm)` : ''}
@@ -67,7 +105,7 @@ export function NearbyScreen({
               <Text style={styles.meta}>
                 Seen {Math.max(
                   0,
-                  Math.floor((Date.now() - user.lastSeenAt) / 1000),
+                  Math.floor((now - user.lastSeenAt) / 1000),
                 )}s ago
               </Text>
             </View>
@@ -120,6 +158,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  signal: {
+    color: '#fff',
+    fontSize: 18,
+    letterSpacing: 2,
+    marginTop: 4,
   },
   meta: {
     color: '#aaa',
