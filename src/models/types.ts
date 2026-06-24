@@ -13,4 +13,5 @@ export type NearbyOfflinkUser = {
   userId: string;
   emoji: string;
   lastSeenAt: number;
+  rssi?: number;
 };

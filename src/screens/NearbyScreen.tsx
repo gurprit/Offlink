@@ -8,6 +8,22 @@ import {
 import {Button} from '../components/Button';
 import {NearbyOfflinkUser} from '../models/types';
 
+function getProximityLabel(rssi?: number): string {
+  if (typeof rssi !== 'number') {
+    return 'Signal unknown';
+  }
+
+  if (rssi >= -55) {
+    return 'Very close';
+  }
+
+  if (rssi >= -70) {
+    return 'Nearby';
+  }
+
+  return 'Far';
+}
+
 export function NearbyScreen({
   nearbyUsers,
   discoveredCount,
@@ -44,7 +60,15 @@ export function NearbyScreen({
             <View>
               <Text style={styles.id}>{user.userId}</Text>
               <Text style={styles.meta}>
-                Last seen just now
+                {getProximityLabel(user.rssi)}
+                {typeof user.rssi === 'number' ? ` (${user.rssi} dBm)` : ''}
+              </Text>
+
+              <Text style={styles.meta}>
+                Seen {Math.max(
+                  0,
+                  Math.floor((Date.now() - user.lastSeenAt) / 1000),
+                )}s ago
               </Text>
             </View>
           </View>

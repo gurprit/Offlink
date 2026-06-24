@@ -13,8 +13,8 @@ export function FriendItem({friend, onRemove}: FriendItemProps) {
       <Text style={styles.friendEmoji}>{friend.emoji}</Text>
 
       <View style={styles.friendTextWrap}>
-        <Text style={styles.friendName}>Emoji friend</Text>
-        <Text style={styles.friendId}>{friend.userId}</Text>
+        <Text style={styles.friendName}>{friend.userId}</Text>
+        <Text style={styles.friendId}>Added friend</Text>
       </View>
 
       <TouchableOpacity

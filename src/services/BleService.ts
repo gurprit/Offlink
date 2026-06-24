@@ -2,6 +2,7 @@ import {PermissionsAndroid, Platform} from 'react-native';
 import {BleManager} from 'react-native-ble-plx';
 import BLEAdvertiser from 'react-native-ble-advertiser';
 import {OfflinkProfile, NearbyOfflinkUser} from '../models/types';
+import {ALL_EMOJIS} from '../data/emojis';
 
 const BLE_APP_PREFIX = 'OL';
 const OFFLINK_COMPANY_ID = 0x1234;
@@ -53,16 +54,14 @@ export function parseBleManufacturerData(manufacturerData: string | null | undef
 }
 const bleManager = new BleManager();
 
-const BLE_EMOJI_MAP = ['🙂', '😀', '🦁', '🚀', '🐸', '👻', '🎧', '🛰️', '🔥', '⭐'];
-
 function encodeEmojiForBle(emoji: string): string {
-  const index = BLE_EMOJI_MAP.indexOf(emoji || '🙂');
+  const index = ALL_EMOJIS.indexOf(emoji || '🙂');
   return String(index >= 0 ? index : 0);
 }
 
 function decodeEmojiFromBle(value: string): string {
   const index = Number(value);
-  return BLE_EMOJI_MAP[index] || '🙂';
+  return ALL_EMOJIS[index] || '🙂';
 }
 
 export function makeBlePayload(profile: OfflinkProfile): string {
@@ -199,8 +198,13 @@ export function startOfflinkScan(
       return;
     }
 
-    console.log('OFFLINK_USER_FOUND', JSON.stringify(user));
-    onUserFound(user);
+    const userWithSignal = {
+      ...user,
+      rssi: device?.rssi ?? undefined,
+    };
+
+    console.log('OFFLINK_USER_FOUND', JSON.stringify(userWithSignal));
+    onUserFound(userWithSignal);
   });
 
   return () => {
