@@ -81,6 +81,10 @@ export function NearbyScreen({
         Friends: {friendCount} · Discovered: {discoveredCount} · Nearby friends: {nearbyUsers.length}
       </Text>
 
+      <Text style={styles.sortHint}>
+        Closest friends appear first
+      </Text>
+
       <View style={styles.spacer} />
 
       {nearbyUsers.length === 0 ? (
@@ -135,6 +139,12 @@ const styles = StyleSheet.create({
     color: '#777',
     fontSize: 13,
     textAlign: 'center',
+  },
+  sortHint: {
+    color: '#999',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 6,
   },
   empty: {
     color: '#aaa',
