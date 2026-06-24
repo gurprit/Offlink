@@ -7,6 +7,7 @@ import {
   Text,
   View,
   StatusBar,
+  TextInput,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import {Button} from '../components/Button';
@@ -15,7 +16,7 @@ import {FriendItem} from '../components/FriendItem';
 import {ScannerScreen} from './ScannerScreen';
 import {OfflinkFriend, OfflinkProfile} from '../models/types';
 import {makeQrPayload, makeShortId, parseFriendInput} from '../services/FriendService';
-import {requestBlePermissions, startBleScanTest, startBleBroadcastTest, stopBleBroadcastTest} from '../services/BleService';
+import {requestBlePermissions, startBleScanTest, startBleBroadcast, stopBleBroadcastTest, parseBleManufacturerData, startOfflinkScan} from '../services/BleService';
 import {
   loadFriends,
   loadProfile,
@@ -26,8 +27,12 @@ import {ALL_EMOJIS} from '../data/emojis';
 
 export function HomeScreen({
   onShowNearby,
+  onNearbyUserFound,
+  onFriendsChanged,
 }: {
   onShowNearby?: () => void;
+  onNearbyUserFound?: (user: import('../models/types').NearbyOfflinkUser) => void;
+  onFriendsChanged?: (friends: OfflinkFriend[]) => void;
 }) {
   const [selectedEmoji, setSelectedEmoji] = useState('');
   const [emojiChoices, setEmojiChoices] = useState<string[]>([]);
@@ -35,6 +40,7 @@ export function HomeScreen({
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [friends, setFriends] = useState<OfflinkFriend[]>([]);
   const [isScanning, setIsScanning] = useState(false);
+  const [manualFriendId, setManualFriendId] = useState('');
 
   const qrValue = useMemo(() => {
     return savedProfile ? makeQrPayload(savedProfile) : '';
@@ -93,6 +99,7 @@ export function HomeScreen({
 
   async function handleSaveFriends(nextFriends: OfflinkFriend[]) {
     setFriends(nextFriends);
+    onFriendsChanged?.(nextFriends);
     await saveFriends(nextFriends);
   }
 
@@ -127,6 +134,37 @@ export function HomeScreen({
     await addFriendFromValue(value);
   }
 
+  async function handleAddManualFriend() {
+    const userId = manualFriendId.trim().toUpperCase();
+
+    if (!userId) {
+      Alert.alert('Enter an Offlink ID', 'Type the friend ID first.');
+      return;
+    }
+
+    if (userId === savedProfile?.userId) {
+      Alert.alert('That is you', 'You cannot add yourself as a friend.');
+      return;
+    }
+
+    const alreadyExists = friends.some(friend => friend.userId === userId);
+
+    if (alreadyExists) {
+      Alert.alert('Already added', 'This friend is already in your friends list.');
+      return;
+    }
+
+    const friend: OfflinkFriend = {
+      userId,
+      emoji: '🙂',
+      addedAt: Date.now(),
+    };
+
+    await handleSaveFriends([...friends, friend]);
+    setManualFriendId('');
+    Alert.alert('Friend added', `${userId} was added.`);
+  }
+
   async function handleRemoveFriend(userId: string) {
     const nextFriends = friends.filter(friend => friend.userId !== userId);
     await handleSaveFriends(nextFriends);
@@ -153,8 +191,13 @@ export function HomeScreen({
 
   async function handleStartBleBroadcastTest() {
     try {
-      await startBleBroadcastTest();
-      Alert.alert('BLE broadcast test', 'Broadcast started.');
+      if (!savedProfile) {
+        Alert.alert('No profile', 'Save your emoji identity before broadcasting.');
+        return;
+      }
+
+      await startBleBroadcast(savedProfile);
+      Alert.alert('BLE broadcast test', `Broadcast started for ${savedProfile.userId}.`);
     } catch (error) {
       Alert.alert('BLE broadcast failed', String(error));
     }
@@ -167,6 +210,28 @@ export function HomeScreen({
     } catch (error) {
       Alert.alert('Stop broadcast failed', String(error));
     }
+  }
+
+  function handleDecodeBleTest() {
+    const parsed = parseBleManufacturerData('NBJPTHxURVNUfExJT04=');
+
+    Alert.alert(
+      'BLE decode test',
+      parsed ? `${parsed.userId} ${parsed.emoji}` : 'Could not decode payload.',
+    );
+  }
+
+  function handleStartLiveOfflinkScan() {
+    const stopScan = startOfflinkScan(user => {
+      onNearbyUserFound?.(user);
+    });
+
+    Alert.alert('Offlink scan', 'Live Offlink scan started for 15 seconds.');
+
+    setTimeout(() => {
+      stopScan();
+      Alert.alert('Offlink scan', 'Live Offlink scan stopped.');
+    }, 15000);
   }
 
   if (isScanning) {
@@ -221,6 +286,20 @@ export function HomeScreen({
           <Button
             label="Stop BLE Broadcast Test"
             onPress={handleStopBleBroadcastTest}
+          />
+
+          <View style={{height: 12}} />
+
+          <Button
+            label="Decode BLE Payload Test"
+            onPress={handleDecodeBleTest}
+          />
+
+          <View style={{height: 12}} />
+
+          <Button
+            label="Start Live Offlink Scan"
+            onPress={handleStartLiveOfflinkScan}
           />
         </Card>
 
@@ -295,6 +374,24 @@ export function HomeScreen({
           <Text style={styles.cardTitle}>Add friend</Text>
 
           <Button label="Scan QR to Add Friend" onPress={() => setIsScanning(true)} />
+
+          <View style={{height: 12}} />
+
+          <TextInput
+            value={manualFriendId}
+            onChangeText={setManualFriendId}
+            placeholder="Enter Offlink ID, e.g. OL-ABC123"
+            placeholderTextColor="#777"
+            autoCapitalize="characters"
+            style={styles.input}
+          />
+
+          <View style={{height: 12}} />
+
+          <Button
+            label="Add Friend by ID"
+            onPress={handleAddManualFriend}
+          />
 
           <View style={{height: 12}} />
 

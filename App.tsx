@@ -49,6 +49,7 @@ export default function App() {
     <HomeScreen
       onShowNearby={() => setShowNearby(true)}
       onNearbyUserFound={handleNearbyUserFound}
+      onFriendsChanged={setFriends}
     />
   );
 }

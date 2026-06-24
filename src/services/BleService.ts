@@ -10,13 +10,66 @@ const OFFLINK_SERVICE_UUID = '0000feed-0000-1000-8000-00805f9b34fb';
 function stringToByteArray(value: string): number[] {
   return Array.from(value).map(char => char.charCodeAt(0));
 }
+
+function decodeBase64(value: string): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  let output = '';
+
+  let buffer = 0;
+  let bits = 0;
+
+  for (const char of value.replace(/=+$/, '')) {
+    const index = chars.indexOf(char);
+
+    if (index < 0) {
+      continue;
+    }
+
+    buffer = (buffer << 6) | index;
+    bits += 6;
+
+    if (bits >= 8) {
+      bits -= 8;
+      output += String.fromCharCode((buffer >> bits) & 0xff);
+    }
+  }
+
+  return output;
+}
+
+export function parseBleManufacturerData(manufacturerData: string | null | undefined): NearbyOfflinkUser | null {
+  if (!manufacturerData) {
+    return null;
+  }
+
+  const decoded = decodeBase64(manufacturerData);
+  const payloadStart = decoded.indexOf('OL|');
+
+  if (payloadStart < 0) {
+    return null;
+  }
+
+  return parseBlePayload(decoded.slice(payloadStart));
+}
 const bleManager = new BleManager();
+
+const BLE_EMOJI_MAP = ['🙂', '😀', '🦁', '🚀', '🐸', '👻', '🎧', '🛰️', '🔥', '⭐'];
+
+function encodeEmojiForBle(emoji: string): string {
+  const index = BLE_EMOJI_MAP.indexOf(emoji || '🙂');
+  return String(index >= 0 ? index : 0);
+}
+
+function decodeEmojiFromBle(value: string): string {
+  const index = Number(value);
+  return BLE_EMOJI_MAP[index] || '🙂';
+}
 
 export function makeBlePayload(profile: OfflinkProfile): string {
   return [
     BLE_APP_PREFIX,
     profile.userId,
-    profile.emoji || '🙂',
+    encodeEmojiForBle(profile.emoji || '🙂'),
   ].join('|');
 }
 
@@ -27,7 +80,8 @@ export function parseBlePayload(input: string): NearbyOfflinkUser | null {
     return null;
   }
 
-  const [prefix, userId, emoji] = parts;
+  const [prefix, userId, emojiValue] = parts;
+  const emoji = decodeEmojiFromBle(emojiValue);
 
   if (prefix !== BLE_APP_PREFIX || !userId || !emoji) {
     return null;
@@ -64,7 +118,7 @@ export async function startBleScanTest(): Promise<number> {
     let seenCount = 0;
 
     try {
-      bleManager.startDeviceScan(null, null, error => {
+      bleManager.startDeviceScan(null, null, (error, device) => {
         if (error) {
           bleManager.stopDeviceScan();
           reject(error);
@@ -72,6 +126,22 @@ export async function startBleScanTest(): Promise<number> {
         }
 
         seenCount += 1;
+
+        if (
+          device?.manufacturerData ||
+          device?.serviceUUIDs?.some(uuid => uuid.toLowerCase().includes('feed'))
+        ) {
+          console.log(
+            'BLE_SCAN_RESULT_JSON',
+            JSON.stringify({
+              id: device?.id,
+              name: device?.name,
+              localName: device?.localName,
+              manufacturerData: device?.manufacturerData,
+              serviceUUIDs: device?.serviceUUIDs,
+            }),
+          );
+        }
       });
 
       setTimeout(() => {
@@ -86,12 +156,12 @@ export async function startBleScanTest(): Promise<number> {
 }
 
 
-export async function startBleBroadcastTest(): Promise<void> {
+export async function startBleBroadcast(profile: OfflinkProfile): Promise<void> {
   BLEAdvertiser.setCompanyId(OFFLINK_COMPANY_ID);
 
   await BLEAdvertiser.broadcast(
     OFFLINK_SERVICE_UUID,
-    stringToByteArray('OL|TEST|LION'),
+    stringToByteArray(makeBlePayload(profile)),
     {
       advertiseMode: 2,
       txPowerLevel: 3,
@@ -102,6 +172,38 @@ export async function startBleBroadcastTest(): Promise<void> {
   );
 }
 
+export async function startBleBroadcastTest(): Promise<void> {
+  await startBleBroadcast({
+    userId: 'TEST',
+    emoji: 'LION',
+  });
+}
+
 export async function stopBleBroadcastTest(): Promise<void> {
   await BLEAdvertiser.stopBroadcast();
+}
+
+
+export function startOfflinkScan(
+  onUserFound: (user: NearbyOfflinkUser) => void,
+): () => void {
+  bleManager.startDeviceScan(null, null, (error, device) => {
+    if (error) {
+      console.log('OFFLINK_SCAN_ERROR', String(error));
+      return;
+    }
+
+    const user = parseBleManufacturerData(device?.manufacturerData);
+
+    if (!user) {
+      return;
+    }
+
+    console.log('OFFLINK_USER_FOUND', JSON.stringify(user));
+    onUserFound(user);
+  });
+
+  return () => {
+    bleManager.stopDeviceScan();
+  };
 }
