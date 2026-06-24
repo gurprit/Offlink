@@ -31,9 +31,11 @@ export function HomeScreen({
   onFriendsChanged,
   bleStatus,
   onShowSightings,
+  onShowMap,
 }: {
   onShowNearby?: () => void;
   onShowSightings?: () => void;
+  onShowMap?: () => void;
   onNearbyUserFound?: (user: import('../models/types').NearbyOfflinkUser) => void;
   onFriendsChanged?: (friends: OfflinkFriend[]) => void;
   bleStatus?: string;
@@ -278,6 +280,13 @@ export function HomeScreen({
           <Button
             label="Show Nearby Friends"
             onPress={() => onShowNearby?.()}
+          />
+
+          <View style={{height: 12}} />
+
+          <Button
+            label="Show Map"
+            onPress={() => onShowMap?.()}
           />
 
           <View style={{height: 12}} />

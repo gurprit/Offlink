@@ -4,6 +4,7 @@ import 'react-native-get-random-values';
 import {HomeScreen} from './src/screens/HomeScreen';
 import {NearbyScreen} from './src/screens/NearbyScreen';
 import {SightingsScreen} from './src/screens/SightingsScreen';
+import {MapScreen} from './src/screens/MapScreen';
 import {NearbyOfflinkUser, OfflinkFriend, OfflinkSighting} from './src/models/types';
 import {loadFriends, loadProfile, loadSightings, saveFriends, saveSightings} from './src/services/StorageService';
 import {
@@ -16,6 +17,7 @@ import {
 export default function App() {
   const [showNearby, setShowNearby] = useState(false);
   const [showSightings, setShowSightings] = useState(false);
+  const [showMap, setShowMap] = useState(false);
   const [nearbyUsers, setNearbyUsers] = useState<NearbyOfflinkUser[]>([]);
   const [friends, setFriends] = useState<OfflinkFriend[]>([]);
   const [sightings, setSightings] = useState<OfflinkSighting[]>([]);
@@ -145,6 +147,15 @@ export default function App() {
     });
   }
 
+  if (showMap) {
+    return (
+      <MapScreen
+        sightings={sightings}
+        onBack={() => setShowMap(false)}
+      />
+    );
+  }
+
   if (showSightings) {
     return (
       <SightingsScreen
@@ -170,6 +181,7 @@ export default function App() {
     <HomeScreen
       onShowNearby={() => setShowNearby(true)}
       onShowSightings={() => setShowSightings(true)}
+      onShowMap={() => setShowMap(true)}
       onNearbyUserFound={handleNearbyUserFound}
       onFriendsChanged={setFriends}
       bleStatus={bleStatus}
