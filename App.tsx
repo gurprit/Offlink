@@ -3,6 +3,7 @@ import 'react-native-get-random-values';
 
 import {HomeScreen} from './src/screens/HomeScreen';
 import {NearbyScreen} from './src/screens/NearbyScreen';
+import {SightingsScreen} from './src/screens/SightingsScreen';
 import {NearbyOfflinkUser, OfflinkFriend, OfflinkSighting} from './src/models/types';
 import {loadFriends, loadProfile, loadSightings, saveFriends, saveSightings} from './src/services/StorageService';
 import {
@@ -14,6 +15,7 @@ import {
 
 export default function App() {
   const [showNearby, setShowNearby] = useState(false);
+  const [showSightings, setShowSightings] = useState(false);
   const [nearbyUsers, setNearbyUsers] = useState<NearbyOfflinkUser[]>([]);
   const [friends, setFriends] = useState<OfflinkFriend[]>([]);
   const [sightings, setSightings] = useState<OfflinkSighting[]>([]);
@@ -143,6 +145,15 @@ export default function App() {
     });
   }
 
+  if (showSightings) {
+    return (
+      <SightingsScreen
+        sightings={sightings}
+        onBack={() => setShowSightings(false)}
+      />
+    );
+  }
+
   if (showNearby) {
     return (
       <NearbyScreen
@@ -158,6 +169,7 @@ export default function App() {
   return (
     <HomeScreen
       onShowNearby={() => setShowNearby(true)}
+      onShowSightings={() => setShowSightings(true)}
       onNearbyUserFound={handleNearbyUserFound}
       onFriendsChanged={setFriends}
       bleStatus={bleStatus}
