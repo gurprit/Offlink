@@ -10,22 +10,32 @@ import {NearbyOfflinkUser} from '../models/types';
 
 export function NearbyScreen({
   nearbyUsers,
+  discoveredCount,
+  friendCount,
   onBack,
 }: {
   nearbyUsers: NearbyOfflinkUser[];
+  discoveredCount: number;
+  friendCount: number;
   onBack: () => void;
 }) {
   return (
     <SafeAreaView style={styles.screen}>
-      <Text style={styles.title}>Nearby Offlink Users</Text>
+      <Text style={styles.title}>Nearby Friends</Text>
 
       <Button label="Back" onPress={onBack} />
 
       <View style={styles.spacer} />
 
+      <Text style={styles.debug}>
+        Friends: {friendCount} · Discovered: {discoveredCount} · Nearby friends: {nearbyUsers.length}
+      </Text>
+
+      <View style={styles.spacer} />
+
       {nearbyUsers.length === 0 ? (
         <Text style={styles.empty}>
-          No nearby Offlink users found yet.
+          No nearby friends found yet.
         </Text>
       ) : (
         nearbyUsers.map(user => (
@@ -58,6 +68,11 @@ const styles = StyleSheet.create({
   },
   spacer: {
     height: 16,
+  },
+  debug: {
+    color: '#777',
+    fontSize: 13,
+    textAlign: 'center',
   },
   empty: {
     color: '#aaa',

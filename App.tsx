@@ -4,20 +4,74 @@ import 'react-native-get-random-values';
 import {HomeScreen} from './src/screens/HomeScreen';
 import {NearbyScreen} from './src/screens/NearbyScreen';
 import {NearbyOfflinkUser, OfflinkFriend} from './src/models/types';
-import {loadFriends} from './src/services/StorageService';
+import {loadFriends, loadProfile} from './src/services/StorageService';
+import {
+  requestBlePermissions,
+  startBleBroadcast,
+  startOfflinkScan,
+  stopBleBroadcastTest,
+} from './src/services/BleService';
 
 export default function App() {
   const [showNearby, setShowNearby] = useState(false);
   const [nearbyUsers, setNearbyUsers] = useState<NearbyOfflinkUser[]>([]);
   const [friends, setFriends] = useState<OfflinkFriend[]>([]);
+  const [bleStatus, setBleStatus] = useState('BLE starting...');
 
   useEffect(() => {
+    let stopScan: (() => void) | null = null;
+    let isMounted = true;
+
     async function initialise() {
       const savedFriends = await loadFriends();
+      const savedProfile = await loadProfile();
+
+      if (!isMounted) {
+        return;
+      }
+
       setFriends(savedFriends);
+
+      if (!savedProfile) {
+        setBleStatus('Save an emoji identity to start BLE.');
+        return;
+      }
+
+      const granted = await requestBlePermissions();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (!granted) {
+        setBleStatus('Bluetooth permissions needed.');
+        return;
+      }
+
+      try {
+        await startBleBroadcast(savedProfile);
+
+        stopScan = startOfflinkScan(user => {
+          handleNearbyUserFound(user);
+        });
+
+        setBleStatus('BLE active: broadcasting and scanning.');
+      } catch (error) {
+        setBleStatus(`BLE error: ${String(error)}`);
+      }
     }
 
     initialise();
+
+    return () => {
+      isMounted = false;
+
+      if (stopScan) {
+        stopScan();
+      }
+
+      stopBleBroadcastTest().catch(() => {});
+    };
   }, []);
 
   const nearbyFriends = useMemo(() => {
@@ -50,6 +104,7 @@ export default function App() {
       onShowNearby={() => setShowNearby(true)}
       onNearbyUserFound={handleNearbyUserFound}
       onFriendsChanged={setFriends}
+      bleStatus={bleStatus}
     />
   );
 }

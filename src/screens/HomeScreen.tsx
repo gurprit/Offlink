@@ -29,10 +29,12 @@ export function HomeScreen({
   onShowNearby,
   onNearbyUserFound,
   onFriendsChanged,
+  bleStatus,
 }: {
   onShowNearby?: () => void;
   onNearbyUserFound?: (user: import('../models/types').NearbyOfflinkUser) => void;
   onFriendsChanged?: (friends: OfflinkFriend[]) => void;
+  bleStatus?: string;
 }) {
   const [selectedEmoji, setSelectedEmoji] = useState('');
   const [emojiChoices, setEmojiChoices] = useState<string[]>([]);
@@ -41,10 +43,22 @@ export function HomeScreen({
   const [friends, setFriends] = useState<OfflinkFriend[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [manualFriendId, setManualFriendId] = useState('');
+  const [showDeveloperTools, setShowDeveloperTools] = useState(false);
+  const [logoTapCount, setLogoTapCount] = useState(0);
 
   const qrValue = useMemo(() => {
     return savedProfile ? makeQrPayload(savedProfile) : '';
   }, [savedProfile]);
+
+  function handleLogoPress() {
+    const nextCount = logoTapCount + 1;
+    setLogoTapCount(nextCount);
+
+    if (nextCount >= 5) {
+      setShowDeveloperTools(value => !value);
+      setLogoTapCount(0);
+    }
+  }
 
   function generateEmojiChoices() {
     const shuffled = [...ALL_EMOJIS].sort(() => Math.random() - 0.5);
@@ -249,59 +263,67 @@ export function HomeScreen({
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
-          <Text style={styles.logo}>OFFLINK</Text>
+          <Text style={styles.logo} onPress={handleLogoPress}>OFFLINK</Text>
           <Text style={styles.tagline}>Find your friends. No signal needed.</Text>
         </View>
 
         <Card>
-          <Text style={styles.cardTitle}>Nearby test</Text>
+          <Text style={styles.cardTitle}>Nearby friends</Text>
+          <Text style={styles.helper}>{bleStatus || 'BLE idle'}</Text>
+
+          <View style={{height: 12}} />
+
           <Button
-            label="📡 Show Nearby Users"
+            label="Show Nearby Friends"
             onPress={() => onShowNearby?.()}
           />
-
-          <View style={{height: 12}} />
-
-          <Button
-            label="Request BLE Permissions"
-            onPress={handleRequestBlePermissions}
-          />
-
-          <View style={{height: 12}} />
-
-          <Button
-            label="Start BLE Scan Test"
-            onPress={handleStartBleScanTest}
-          />
-
-          <View style={{height: 12}} />
-
-          <Button
-            label="Start BLE Broadcast Test"
-            onPress={handleStartBleBroadcastTest}
-          />
-
-          <View style={{height: 12}} />
-
-          <Button
-            label="Stop BLE Broadcast Test"
-            onPress={handleStopBleBroadcastTest}
-          />
-
-          <View style={{height: 12}} />
-
-          <Button
-            label="Decode BLE Payload Test"
-            onPress={handleDecodeBleTest}
-          />
-
-          <View style={{height: 12}} />
-
-          <Button
-            label="Start Live Offlink Scan"
-            onPress={handleStartLiveOfflinkScan}
-          />
         </Card>
+
+        {showDeveloperTools ? (
+          <Card>
+            <Text style={styles.cardTitle}>Developer Tools</Text>
+
+            <Button
+              label="Request BLE Permissions"
+              onPress={handleRequestBlePermissions}
+            />
+
+            <View style={{height: 12}} />
+
+            <Button
+              label="Start BLE Scan Test"
+              onPress={handleStartBleScanTest}
+            />
+
+            <View style={{height: 12}} />
+
+            <Button
+              label="Start BLE Broadcast Test"
+              onPress={handleStartBleBroadcastTest}
+            />
+
+            <View style={{height: 12}} />
+
+            <Button
+              label="Stop BLE Broadcast Test"
+              onPress={handleStopBleBroadcastTest}
+            />
+
+            <View style={{height: 12}} />
+
+            <Button
+              label="Decode BLE Payload Test"
+              onPress={handleDecodeBleTest}
+            />
+
+            <View style={{height: 12}} />
+
+            <Button
+              label="Start Live Offlink Scan"
+              onPress={handleStartLiveOfflinkScan}
+            />
+          </Card>
+        ) : null}
 
         <Card>
           <Text style={styles.cardTitle}>Your emoji identity</Text>
@@ -393,15 +415,8 @@ export function HomeScreen({
             onPress={handleAddManualFriend}
           />
 
-          <View style={{height: 12}} />
-
-          <Button
-            label="Show Nearby Users"
-            onPress={() => onShowNearby?.()}
-          />
-
           <Text style={styles.helper}>
-            Scan your friend's QR code to add them.
+            Scan a QR code or manually enter an Offlink ID.
           </Text>
         </Card>
 
@@ -509,6 +524,16 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: 4,
     textAlign: 'center',
+  },
+  input: {
+    backgroundColor: '#101010',
+    borderColor: '#333',
+    borderWidth: 1,
+    borderRadius: 12,
+    color: '#fff',
+    fontSize: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   qrBox: {
     alignSelf: 'center',
