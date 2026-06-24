@@ -92,11 +92,11 @@ export default function App() {
         currentUser => currentUser.userId !== user.userId,
       );
 
-      const nextUsers = [user, ...withoutExisting];
+      const nextUsers = [user, ...withoutExisting]
+        .filter(item => Date.now() - item.lastSeenAt < 30000)
+        .sort((a, b) => (b.rssi ?? -999) - (a.rssi ?? -999));
 
-      return nextUsers.filter(
-        item => Date.now() - item.lastSeenAt < 30000,
-      );
+      return nextUsers;
     });
 
     setFriends(currentFriends => {
