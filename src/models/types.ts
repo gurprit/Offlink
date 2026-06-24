@@ -24,4 +24,7 @@ export type OfflinkSighting = {
   source: 'direct' | 'mesh';
   rssi?: number;
   hops?: number;
+  latitude?: number;
+  longitude?: number;
+  accuracy?: number;
 };
