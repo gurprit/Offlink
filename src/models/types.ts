@@ -21,6 +21,8 @@ export type OfflinkSighting = {
   userId: string;
   emoji: string;
   lastSeenAt: number;
+  updatedAt: number;
+  seenBy: string;
   source: 'direct' | 'mesh';
   rssi?: number;
   hops?: number;

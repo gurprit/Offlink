@@ -23,6 +23,7 @@ export default function App() {
   const [friends, setFriends] = useState<OfflinkFriend[]>([]);
   const [sightings, setSightings] = useState<OfflinkSighting[]>([]);
   const [bleStatus, setBleStatus] = useState('BLE starting...');
+  const [ownUserId, setOwnUserId] = useState<string | null>(null);
 
   useEffect(() => {
     let stopScan: (() => void) | null = null;
@@ -49,6 +50,8 @@ export default function App() {
         setBleStatus('Save an emoji identity to start BLE.');
         return;
       }
+
+      setOwnUserId(savedProfile.userId);
 
       const granted = await requestBlePermissions();
 
@@ -113,6 +116,8 @@ export default function App() {
         userId: user.userId,
         emoji: user.emoji,
         lastSeenAt: user.lastSeenAt,
+        updatedAt: Date.now(),
+        seenBy: ownUserId || 'unknown',
         source: 'direct',
         rssi: user.rssi,
         hops: 0,
