@@ -13,7 +13,7 @@ import {
   startOfflinkScan,
   stopBleBroadcastTest,
 } from './src/services/BleService';
-import {getCurrentLocation, OfflinkLocation, watchCurrentLocation} from './src/services/LocationService';
+import {OfflinkLocation, watchCurrentLocation} from './src/services/LocationService';
 
 export default function App() {
   const [showNearby, setShowNearby] = useState(false);
@@ -108,8 +108,8 @@ export default function App() {
     return nearbyUsers.filter(user => friendIds.has(user.userId));
   }, [friends, nearbyUsers]);
 
-  async function handleNearbyUserFound(user: NearbyOfflinkUser) {
-    const location = await getCurrentLocation();
+  function handleNearbyUserFound(user: NearbyOfflinkUser) {
+    const location = currentLocation;
     setNearbyUsers(currentUsers => {
       const withoutExisting = currentUsers.filter(
         currentUser => currentUser.userId !== user.userId,
