@@ -45,6 +45,12 @@ export function SightingsScreen({
                 Seen {Math.max(0, Math.floor((now - sighting.lastSeenAt) / 1000))}s ago
                 {typeof sighting.rssi === 'number' ? ` · ${sighting.rssi} dBm` : ''}
               </Text>
+              <Text style={styles.meta}>
+                {typeof sighting.latitude === 'number' &&
+                typeof sighting.longitude === 'number'
+                  ? `GPS saved · ${sighting.latitude.toFixed(5)}, ${sighting.longitude.toFixed(5)}`
+                  : 'No GPS saved yet'}
+              </Text>
             </View>
           </View>
         ))

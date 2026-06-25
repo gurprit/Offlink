@@ -5,10 +5,49 @@ import {
   Text,
   View,
 } from 'react-native';
-import {Camera, MapView, UserLocation} from '@maplibre/maplibre-react-native';
+import {Camera, MapView, PointAnnotation, UserLocation} from '@maplibre/maplibre-react-native';
 import {Button} from '../components/Button';
 import {OfflinkSighting} from '../models/types';
 import {OfflinkLocation} from '../services/LocationService';
+
+const OFFLINK_TEST_MAP_STYLE = {
+  version: 8,
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors',
+    },
+  },
+  layers: [
+    {
+      id: 'osm-tiles',
+      type: 'raster',
+      source: 'osm',
+    },
+  ],
+};
+
+
+
+function getOffsetCoordinate(
+  longitude: number,
+  latitude: number,
+  id: string,
+): [number, number] {
+  const charTotal = id
+    .split('')
+    .reduce((total, char) => total + char.charCodeAt(0), 0);
+
+  const angle = (charTotal % 360) * (Math.PI / 180);
+  const distance = 0.00018;
+
+  return [
+    longitude + Math.cos(angle) * distance,
+    latitude + Math.sin(angle) * distance,
+  ];
+}
 
 export function MapScreen({
   sightings,
@@ -33,13 +72,34 @@ export function MapScreen({
       <View style={styles.mapWrap}>
         <MapView
           style={styles.map}
-          mapStyle="https://demotiles.maplibre.org/style.json">
+          mapStyle={JSON.stringify(OFFLINK_TEST_MAP_STYLE)}>
           <Camera
             zoomLevel={15}
             centerCoordinate={centerCoordinate}
-            followUserLocation={Boolean(currentLocation)}
           />
           <UserLocation visible />
+
+          {sightings
+            .filter(
+              sighting =>
+                typeof sighting.latitude === 'number' &&
+                typeof sighting.longitude === 'number',
+            )
+            .map(sighting => (
+              <PointAnnotation
+                key={sighting.userId}
+                id={sighting.userId}
+                coordinate={getOffsetCoordinate(sighting.longitude!, sighting.latitude!, sighting.userId)}>
+                <View style={styles.sightingMarker}>
+                  <Text style={styles.sightingMarkerEmoji}>
+                    {sighting.emoji}
+                  </Text>
+                  <Text style={styles.sightingMarkerMeta}>
+                    {sighting.source === 'direct' ? 'BLE' : `${sighting.hops || 1} hop`}
+                  </Text>
+                </View>
+              </PointAnnotation>
+            ))}
         </MapView>
       </View>
 
@@ -78,6 +138,32 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  sightingMarker: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sightingMarkerEmoji: {
+    backgroundColor: '#ffffff',
+    borderRadius: 22,
+    borderColor: '#050505',
+    borderWidth: 2,
+    fontSize: 28,
+    height: 44,
+    lineHeight: 40,
+    overflow: 'hidden',
+    textAlign: 'center',
+    width: 44,
+  },
+  sightingMarkerMeta: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    color: '#050505',
+    fontSize: 9,
+    fontWeight: '800',
+    marginTop: 2,
+    paddingHorizontal: 4,
+    textAlign: 'center',
   },
   helper: {
     color: '#888',

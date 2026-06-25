@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import 'react-native-get-random-values';
 
 import {HomeScreen} from './src/screens/HomeScreen';
@@ -25,6 +25,7 @@ export default function App() {
   const [bleStatus, setBleStatus] = useState('BLE starting...');
   const [ownUserId, setOwnUserId] = useState<string | null>(null);
   const [currentLocation, setCurrentLocation] = useState<OfflinkLocation | null>(null);
+  const currentLocationRef = useRef<OfflinkLocation | null>(null);
 
   useEffect(() => {
     let stopScan: (() => void) | null = null;
@@ -68,7 +69,10 @@ export default function App() {
 
       try {
         stopLocationWatch = await watchCurrentLocation(
-          location => setCurrentLocation(location),
+          location => {
+            currentLocationRef.current = location;
+            setCurrentLocation(location);
+          },
           error => console.log('OFFLINK_LOCATION_WATCH_ERROR', error),
         );
 
@@ -109,7 +113,7 @@ export default function App() {
   }, [friends, nearbyUsers]);
 
   function handleNearbyUserFound(user: NearbyOfflinkUser) {
-    const location = currentLocation;
+    const location = currentLocationRef.current;
     setNearbyUsers(currentUsers => {
       const withoutExisting = currentUsers.filter(
         currentUser => currentUser.userId !== user.userId,
