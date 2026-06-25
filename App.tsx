@@ -13,7 +13,7 @@ import {
   startOfflinkScan,
   stopBleBroadcastTest,
 } from './src/services/BleService';
-import {getCurrentLocation} from './src/services/LocationService';
+import {getCurrentLocation, OfflinkLocation, watchCurrentLocation} from './src/services/LocationService';
 
 export default function App() {
   const [showNearby, setShowNearby] = useState(false);
@@ -24,9 +24,11 @@ export default function App() {
   const [sightings, setSightings] = useState<OfflinkSighting[]>([]);
   const [bleStatus, setBleStatus] = useState('BLE starting...');
   const [ownUserId, setOwnUserId] = useState<string | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<OfflinkLocation | null>(null);
 
   useEffect(() => {
     let stopScan: (() => void) | null = null;
+    let stopLocationWatch: (() => void) | null = null;
     let isMounted = true;
     const staleUserTimer = setInterval(() => {
       setNearbyUsers(currentUsers =>
@@ -65,6 +67,11 @@ export default function App() {
       }
 
       try {
+        stopLocationWatch = await watchCurrentLocation(
+          location => setCurrentLocation(location),
+          error => console.log('OFFLINK_LOCATION_WATCH_ERROR', error),
+        );
+
         await startBleBroadcast(savedProfile);
 
         stopScan = startOfflinkScan(user => {
@@ -84,6 +91,10 @@ export default function App() {
 
       if (stopScan) {
         stopScan();
+      }
+
+      if (stopLocationWatch) {
+        stopLocationWatch();
       }
 
       clearInterval(staleUserTimer);
@@ -161,6 +172,7 @@ export default function App() {
     return (
       <MapScreen
         sightings={sightings}
+        currentLocation={currentLocation}
         onBack={() => setShowMap(false)}
       />
     );

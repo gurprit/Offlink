@@ -50,3 +50,40 @@ export async function getCurrentLocation(): Promise<OfflinkLocation | null> {
     );
   });
 }
+
+
+export async function watchCurrentLocation(
+  onLocation: (location: OfflinkLocation) => void,
+  onError?: (error: string) => void,
+): Promise<() => void> {
+  const granted = await requestLocationPermission();
+
+  if (!granted) {
+    onError?.('Location permission not granted.');
+    return () => {};
+  }
+
+  const watchId = Geolocation.watchPosition(
+    (position: GeoPosition) => {
+      onLocation({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+      });
+    },
+    (error: GeoError) => {
+      onError?.(String(error.message || error.code));
+    },
+    {
+      enableHighAccuracy: true,
+      distanceFilter: 2,
+      interval: 3000,
+      fastestInterval: 1000,
+      showsBackgroundLocationIndicator: false,
+    },
+  );
+
+  return () => {
+    Geolocation.clearWatch(watchId);
+  };
+}

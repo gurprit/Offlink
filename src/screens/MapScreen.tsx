@@ -8,14 +8,21 @@ import {
 import {Camera, MapView, UserLocation} from '@maplibre/maplibre-react-native';
 import {Button} from '../components/Button';
 import {OfflinkSighting} from '../models/types';
+import {OfflinkLocation} from '../services/LocationService';
 
 export function MapScreen({
   sightings,
+  currentLocation,
   onBack,
 }: {
   sightings: OfflinkSighting[];
+  currentLocation: OfflinkLocation | null;
   onBack: () => void;
 }) {
+  const centerCoordinate: [number, number] = currentLocation
+    ? [currentLocation.longitude, currentLocation.latitude]
+    : [-0.1276, 51.5072];
+
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
@@ -28,15 +35,19 @@ export function MapScreen({
           style={styles.map}
           mapStyle="https://demotiles.maplibre.org/style.json">
           <Camera
-            zoomLevel={13}
-            centerCoordinate={[-0.1276, 51.5072]}
+            zoomLevel={15}
+            centerCoordinate={centerCoordinate}
+            followUserLocation={Boolean(currentLocation)}
           />
           <UserLocation visible />
         </MapView>
       </View>
 
       <Text style={styles.helper}>
-        Real map test · {sightings.length} stored sightings
+        Real map · {sightings.length} stored sightings
+        {currentLocation
+          ? ` · GPS ±${Math.round(currentLocation.accuracy || 0)}m`
+          : ' · Waiting for GPS'}
       </Text>
     </SafeAreaView>
   );
