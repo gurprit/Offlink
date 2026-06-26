@@ -1293,7 +1293,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   _reactNative.AppRegistry.registerComponent(_$$_REQUIRE(_dependencyMap[3], "./app.json").name, function () {
     return _App.default;
   });
-},0,[1,2,615,1062],"index.js");
+},0,[1,2,615,1063],"index.js");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   function _interopRequireDefault(e) {
     return e && e.__esModule ? e : {
@@ -99910,7 +99910,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       yield _reactNativeBleAdvertiser.default.broadcast(OFFLINK_SERVICE_UUID, stringToByteArray(makeBlePayload(profile, location)), {
         advertiseMode: 2,
         txPowerLevel: 3,
-        connectable: false,
+        connectable: true,
         includeDeviceName: false,
         includeTxPowerLevel: false
       });
@@ -99950,6 +99950,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         return;
       }
       var userWithSignal = Object.assign({}, user, {
+        deviceId: device == null ? void 0 : device.id,
         rssi: (_device$rssi = device == null ? void 0 : device.rssi) != null ? _device$rssi : undefined
       });
       console.log('OFFLINK_USER_FOUND', JSON.stringify(userWithSignal));
@@ -108603,6 +108604,10 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       _useState16 = (0, _slicedToArray2.default)(_useState15, 2),
       logoTapCount = _useState16[0],
       setLogoTapCount = _useState16[1];
+    var _useState17 = (0, _react.useState)(null),
+      _useState18 = (0, _slicedToArray2.default)(_useState17, 2),
+      nearestDeviceId = _useState18[0],
+      setNearestDeviceId = _useState18[1];
     var qrValue = (0, _react.useMemo)(function () {
       return savedProfile ? (0, _$$_REQUIRE(_dependencyMap[8], "../services/FriendService").makeQrPayload)(savedProfile) : '';
     }, [savedProfile]);
@@ -108820,8 +108825,53 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       var parsed = (0, _$$_REQUIRE(_dependencyMap[11], "../services/BleService").parseBleManufacturerData)('NBJPTHxURVNUfExJT04=');
       _reactNative.Alert.alert('BLE decode test', parsed ? `${parsed.userId} ${parsed.emoji}` : 'Could not decode payload.');
     }
+    function handleStartGattServer() {
+      return _handleStartGattServer.apply(this, arguments);
+    }
+    function _handleStartGattServer() {
+      _handleStartGattServer = (0, _asyncToGenerator2.default)(function* () {
+        try {
+          yield (0, _$$_REQUIRE(_dependencyMap[12], "../services/GattService").startGattServer)('Hello from Offlink GATT');
+          _reactNative.Alert.alert('GATT server', 'Started. Nearby Offlink phones can now read the test payload.');
+        } catch (error) {
+          _reactNative.Alert.alert('GATT server failed', String(error));
+        }
+      });
+      return _handleStartGattServer.apply(this, arguments);
+    }
+    function handleStopGattServer() {
+      return _handleStopGattServer.apply(this, arguments);
+    }
+    function _handleStopGattServer() {
+      _handleStopGattServer = (0, _asyncToGenerator2.default)(function* () {
+        try {
+          yield (0, _$$_REQUIRE(_dependencyMap[12], "../services/GattService").stopGattServer)();
+          _reactNative.Alert.alert('GATT server', 'Stopped.');
+        } catch (error) {
+          _reactNative.Alert.alert('GATT stop failed', String(error));
+        }
+      });
+      return _handleStopGattServer.apply(this, arguments);
+    }
+    function handleReadGattFromNearest() {
+      return _handleReadGattFromNearest.apply(this, arguments);
+    }
+    function _handleReadGattFromNearest() {
+      _handleReadGattFromNearest = (0, _asyncToGenerator2.default)(function* () {
+        try {
+          var payload = yield (0, _$$_REQUIRE(_dependencyMap[12], "../services/GattService").readGattPayloadFromNearest)();
+          _reactNative.Alert.alert('GATT read success', payload || 'Read worked, but payload was empty.');
+        } catch (error) {
+          _reactNative.Alert.alert('GATT read failed', String(error));
+        }
+      });
+      return _handleReadGattFromNearest.apply(this, arguments);
+    }
     function handleStartLiveOfflinkScan() {
       var stopScan = (0, _$$_REQUIRE(_dependencyMap[11], "../services/BleService").startOfflinkScan)(function (user) {
+        if (user.deviceId) {
+          setNearestDeviceId(user.deviceId);
+        }
         onNearbyUserFound == null || onNearbyUserFound(user);
       });
       _reactNative.Alert.alert('Offlink scan', 'Live Offlink scan started for 15 seconds.');
@@ -108831,7 +108881,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       }, 15000);
     }
     if (isScanning) {
-      return /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[12], "./ScannerScreen").ScannerScreen, {
+      return /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[13], "./ScannerScreen").ScannerScreen, {
         onClose: function onClose() {
           return setIsScanning(false);
         },
@@ -108855,7 +108905,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
             style: styles.tagline,
             children: "Find your friends. No signal needed."
           })]
-        }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[13], "../components/Card").Card, {
+        }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[14], "../components/Card").Card, {
           children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
             style: styles.cardTitle,
             children: "Nearby friends"
@@ -108866,7 +108916,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
             style: {
               height: 12
             }
-          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[14], "../components/Button").Button, {
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
             label: "Show Nearby Friends",
             onPress: function onPress() {
               return onShowNearby == null ? void 0 : onShowNearby();
@@ -108875,7 +108925,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
             style: {
               height: 12
             }
-          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[14], "../components/Button").Button, {
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
             label: "Show Map",
             onPress: function onPress() {
               return onShowMap == null ? void 0 : onShowMap();
@@ -108884,56 +108934,77 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
             style: {
               height: 12
             }
-          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[14], "../components/Button").Button, {
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
             label: "Show Sightings",
             onPress: function onPress() {
               return onShowSightings == null ? void 0 : onShowSightings();
             }
           })]
-        }), showDeveloperTools ? /*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[13], "../components/Card").Card, {
+        }), showDeveloperTools ? /*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[14], "../components/Card").Card, {
           children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
             style: styles.cardTitle,
             children: "Developer Tools"
-          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[14], "../components/Button").Button, {
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
             label: "Request BLE Permissions",
             onPress: handleRequestBlePermissions
           }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
             style: {
               height: 12
             }
-          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[14], "../components/Button").Button, {
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
             label: "Start BLE Scan Test",
             onPress: handleStartBleScanTest
           }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
             style: {
               height: 12
             }
-          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[14], "../components/Button").Button, {
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
             label: "Start BLE Broadcast Test",
             onPress: handleStartBleBroadcastTest
           }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
             style: {
               height: 12
             }
-          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[14], "../components/Button").Button, {
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
             label: "Stop BLE Broadcast Test",
             onPress: handleStopBleBroadcastTest
           }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
             style: {
               height: 12
             }
-          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[14], "../components/Button").Button, {
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
             label: "Decode BLE Payload Test",
             onPress: handleDecodeBleTest
           }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
             style: {
               height: 12
             }
-          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[14], "../components/Button").Button, {
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
+            label: "Start GATT Server",
+            onPress: handleStartGattServer
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
+            style: {
+              height: 12
+            }
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
+            label: "Stop GATT Server",
+            onPress: handleStopGattServer
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
+            style: {
+              height: 12
+            }
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
+            label: "Read GATT From Nearby Phone",
+            onPress: handleReadGattFromNearest
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
+            style: {
+              height: 12
+            }
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
             label: "Start Live Offlink Scan",
             onPress: handleStartLiveOfflinkScan
           })]
-        }) : null, /*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[13], "../components/Card").Card, {
+        }) : null, /*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[14], "../components/Card").Card, {
           children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
             style: styles.cardTitle,
             children: "Your emoji identity"
@@ -108955,7 +109026,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
               })]
             }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
               style: styles.saveButtonWrap,
-              children: /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[14], "../components/Button").Button, {
+              children: /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
                 label: "Change Emoji",
                 onPress: handleEditProfile
               })
@@ -108975,18 +109046,18 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
                   children: emoji
                 }, emoji);
               })
-            }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[14], "../components/Button").Button, {
+            }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
               label: "\uD83C\uDFB2 New Emoji Set",
               onPress: generateEmojiChoices
             }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
               style: styles.saveButtonWrap,
-              children: /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[14], "../components/Button").Button, {
+              children: /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
                 label: "Save Emoji Identity",
                 onPress: handleSaveProfile
               })
             }), savedProfile ? /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
               style: styles.saveButtonWrap,
-              children: /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[14], "../components/Button").Button, {
+              children: /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
                 label: "Cancel",
                 onPress: function onPress() {
                   return setIsEditingProfile(false);
@@ -108994,7 +109065,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
               })
             }) : null]
           })]
-        }), savedProfile ? /*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[13], "../components/Card").Card, {
+        }), savedProfile ? /*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[14], "../components/Card").Card, {
           children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
             style: styles.cardTitle,
             children: "Your QR"
@@ -109010,11 +109081,11 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
             style: styles.helper,
             children: "Share this QR so friends can add you."
           })]
-        }) : null, /*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[13], "../components/Card").Card, {
+        }) : null, /*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[14], "../components/Card").Card, {
           children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
             style: styles.cardTitle,
             children: "Add friend"
-          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[14], "../components/Button").Button, {
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
             label: "Scan QR to Add Friend",
             onPress: function onPress() {
               return setIsScanning(true);
@@ -109034,14 +109105,14 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
             style: {
               height: 12
             }
-          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[14], "../components/Button").Button, {
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/Button").Button, {
             label: "Add Friend by ID",
             onPress: handleAddManualFriend
           }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
             style: styles.helper,
             children: "Scan a QR code or manually enter an Offlink ID."
           })]
-        }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[13], "../components/Card").Card, {
+        }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[14], "../components/Card").Card, {
           children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
             style: styles.cardTitle,
             children: "Friends"
@@ -109049,7 +109120,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
             style: styles.helper,
             children: "No friends added yet. Soon, only these people will appear in nearby discovery."
           }) : friends.map(function (friend) {
-            return /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[15], "../components/FriendItem").FriendItem, {
+            return /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[16], "../components/FriendItem").FriendItem, {
               friend: friend,
               onRemove: handleRemoveFriend
             }, friend.userId);
@@ -109159,7 +109230,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       marginBottom: 12
     }
   });
-},705,[1,165,6,40,121,2,706,169,1017,637,618,625,1018,1060,702,1061],"src/screens/HomeScreen.tsx");
+},705,[1,165,6,40,121,2,706,169,1017,637,618,625,1018,1019,1061,702,1062],"src/screens/HomeScreen.tsx");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
   Object.defineProperty(exports, "__esModule", {
@@ -149384,6 +149455,140 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   Object.defineProperty(exports, "__esModule", {
     value: true
   });
+  exports.readGattPayloadFromDevice = readGattPayloadFromDevice;
+  exports.readGattPayloadFromNearest = readGattPayloadFromNearest;
+  exports.setGattPayload = setGattPayload;
+  exports.startGattServer = startGattServer;
+  exports.stopGattServer = stopGattServer;
+  var _asyncToGenerator2 = _interopRequireDefault(_$$_REQUIRE(_dependencyMap[1], "@babel/runtime/helpers/asyncToGenerator"));
+  var _reactNative = _$$_REQUIRE(_dependencyMap[2], "react-native");
+  var SERVICE_UUID = '0000feed-0000-1000-8000-00805f9b34fb';
+  var MESH_CHARACTERISTIC_UUID = '0000beef-0000-1000-8000-00805f9b34fb';
+  var OfflinkGatt = _reactNative.NativeModules.OfflinkGatt;
+  var gattClient = new (_$$_REQUIRE(_dependencyMap[3], "react-native-ble-plx").BleManager)();
+  function decodeBase64(value) {
+    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+    var output = '';
+    var buffer = 0;
+    var bits = 0;
+    for (var char of value.replace(/=+$/, '')) {
+      var index = chars.indexOf(char);
+      if (index < 0) {
+        continue;
+      }
+      buffer = buffer << 6 | index;
+      bits += 6;
+      if (bits >= 8) {
+        bits -= 8;
+        output += String.fromCharCode(buffer >> bits & 0xff);
+      }
+    }
+    return output;
+  }
+  function startGattServer() {
+    return _startGattServer.apply(this, arguments);
+  }
+  function _startGattServer() {
+    _startGattServer = (0, _asyncToGenerator2.default)(function* () {
+      var payload = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'Hello from Offlink GATT';
+      yield OfflinkGatt.startServer(payload);
+    });
+    return _startGattServer.apply(this, arguments);
+  }
+  function stopGattServer() {
+    return _stopGattServer.apply(this, arguments);
+  }
+  function _stopGattServer() {
+    _stopGattServer = (0, _asyncToGenerator2.default)(function* () {
+      yield OfflinkGatt.stopServer();
+    });
+    return _stopGattServer.apply(this, arguments);
+  }
+  function setGattPayload(_x) {
+    return _setGattPayload.apply(this, arguments);
+  }
+  function _setGattPayload() {
+    _setGattPayload = (0, _asyncToGenerator2.default)(function* (payload) {
+      yield OfflinkGatt.setPayload(payload);
+    });
+    return _setGattPayload.apply(this, arguments);
+  }
+  function findNearestOfflinkDevice() {
+    return _findNearestOfflinkDevice.apply(this, arguments);
+  }
+  function _findNearestOfflinkDevice() {
+    _findNearestOfflinkDevice = (0, _asyncToGenerator2.default)(function* () {
+      var timeoutMs = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 6000;
+      return new Promise(function (resolve, reject) {
+        var didFinish = false;
+        var timer = setTimeout(function () {
+          if (didFinish) {
+            return;
+          }
+          didFinish = true;
+          gattClient.stopDeviceScan();
+          reject(new Error('No Offlink BLE device found during GATT scan.'));
+        }, timeoutMs);
+        gattClient.startDeviceScan(null, null, function (error, device) {
+          if (didFinish) {
+            return;
+          }
+          if (error) {
+            didFinish = true;
+            clearTimeout(timer);
+            gattClient.stopDeviceScan();
+            reject(error);
+            return;
+          }
+          var user = (0, _$$_REQUIRE(_dependencyMap[4], "./BleService").parseBleManufacturerData)(device == null ? void 0 : device.manufacturerData);
+          if (!user || !device) {
+            return;
+          }
+          didFinish = true;
+          clearTimeout(timer);
+          gattClient.stopDeviceScan();
+          setTimeout(function () {
+            return resolve(device);
+          }, 500);
+        });
+      });
+    });
+    return _findNearestOfflinkDevice.apply(this, arguments);
+  }
+  function readGattPayloadFromNearest() {
+    return _readGattPayloadFromNearest.apply(this, arguments);
+  }
+  function _readGattPayloadFromNearest() {
+    _readGattPayloadFromNearest = (0, _asyncToGenerator2.default)(function* () {
+      var device = yield findNearestOfflinkDevice();
+      return readGattPayloadFromDevice(device.id);
+    });
+    return _readGattPayloadFromNearest.apply(this, arguments);
+  }
+  function readGattPayloadFromDevice(_x2) {
+    return _readGattPayloadFromDevice.apply(this, arguments);
+  }
+  function _readGattPayloadFromDevice() {
+    _readGattPayloadFromDevice = (0, _asyncToGenerator2.default)(function* (deviceId) {
+      var device = yield gattClient.connectToDevice(deviceId, {
+        timeout: 8000
+      });
+      try {
+        yield device.discoverAllServicesAndCharacteristics();
+        var characteristic = yield device.readCharacteristicForService(SERVICE_UUID, MESH_CHARACTERISTIC_UUID);
+        return decodeBase64(characteristic.value || '');
+      } finally {
+        yield gattClient.cancelDeviceConnection(device.id).catch(function () {});
+      }
+    });
+    return _readGattPayloadFromDevice.apply(this, arguments);
+  }
+},1018,[1,165,2,627,625],"src/services/GattService.ts");
+__d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
+  var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
+  Object.defineProperty(exports, "__esModule", {
+    value: true
+  });
   exports.ScannerScreen = ScannerScreen;
   var _asyncToGenerator2 = _interopRequireDefault(_$$_REQUIRE(_dependencyMap[1], "@babel/runtime/helpers/asyncToGenerator"));
   var _slicedToArray2 = _interopRequireDefault(_$$_REQUIRE(_dependencyMap[2], "@babel/runtime/helpers/slicedToArray"));
@@ -149544,7 +149749,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       fontWeight: '900'
     }
   });
-},1018,[1,165,40,121,2,169,1019],"src/screens/ScannerScreen.tsx");
+},1019,[1,165,40,121,2,169,1020],"src/screens/ScannerScreen.tsx");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -149809,7 +150014,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       }
     });
   });
-},1019,[1020,1022,1034,1035,1036,1037,1038,1039,1040,1041,1042,1043,1044,1045,1046,1047,1048,1049,1050,1051,1052,1053,1057,1058,1025,1059],"node_modules/react-native-vision-camera/src/index.ts");
+},1020,[1021,1023,1035,1036,1037,1038,1039,1040,1041,1042,1043,1044,1045,1046,1047,1048,1049,1050,1051,1052,1053,1054,1058,1059,1026,1060],"node_modules/react-native-vision-camera/src/index.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
   Object.defineProperty(exports, "__esModule", {
@@ -150609,7 +150814,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       top: 30
     }
   });
-},1020,[1,6,232,165,12,13,25,27,30,121,2,169,1021,1022,1024,1025,1027,1028,1029,1033],"node_modules/react-native-vision-camera/src/Camera.tsx");
+},1021,[1,6,232,165,12,13,25,27,30,121,2,169,1022,1023,1025,1026,1028,1029,1030,1034],"node_modules/react-native-vision-camera/src/Camera.tsx");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
   Object.defineProperty(exports, "__esModule", {
@@ -150666,7 +150871,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       }
     }]);
   }();
-},1021,[1,12,13],"node_modules/react-native-vision-camera/src/RotationHelper.ts");
+},1022,[1,12,13],"node_modules/react-native-vision-camera/src/RotationHelper.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
   Object.defineProperty(exports, "__esModule", {
@@ -150800,7 +151005,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       return nativeError;
     }
   };
-},1022,[1,12,13,25,30,27,1023,173],"node_modules/react-native-vision-camera/src/CameraError.ts");
+},1023,[1,12,13,25,30,27,1024,173],"node_modules/react-native-vision-camera/src/CameraError.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   function set(e, r, t, o) {
     return set = "undefined" != typeof Reflect && Reflect.set ? Reflect.set : function (e, r, t, o) {
@@ -150822,7 +151027,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     return t;
   }
   module.exports = _set, module.exports.__esModule = true, module.exports["default"] = module.exports;
-},1023,[29,101],"node_modules/@babel/runtime/helpers/set.js");
+},1024,[29,101],"node_modules/@babel/runtime/helpers/set.js");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -150860,7 +151065,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     message += '\n* Make sure you rebuilt the app.';
     throw new (_$$_REQUIRE(_dependencyMap[1], "./CameraError").CameraRuntimeError)('system/camera-module-not-found', message);
   }
-},1024,[2,1022],"node_modules/react-native-vision-camera/src/NativeCameraModule.ts");
+},1025,[2,1023],"node_modules/react-native-vision-camera/src/NativeCameraModule.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -150907,7 +151112,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
    * This will be replaced with a CxxTurboModule in the future.
    */
   var VisionCameraProxy = exports.VisionCameraProxy = proxy;
-},1025,[null,1024,1026],"node_modules/react-native-vision-camera/src/frame-processors/VisionCameraProxy.ts");
+},1026,[null,1025,1027],"node_modules/react-native-vision-camera/src/frame-processors/VisionCameraProxy.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
   Object.defineProperty(exports, "__esModule", {
@@ -150929,7 +151134,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     (0, _inherits2.default)(FrameProcessorsUnavailableError, _CameraRuntimeError);
     return (0, _createClass2.default)(FrameProcessorsUnavailableError);
   }(_$$_REQUIRE(_dependencyMap[6], "../CameraError").CameraRuntimeError);
-},1026,[1,13,12,25,27,30,1022],"node_modules/react-native-vision-camera/src/frame-processors/FrameProcessorsUnavailableError.ts");
+},1027,[1,13,12,25,27,30,1023],"node_modules/react-native-vision-camera/src/frame-processors/FrameProcessorsUnavailableError.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
   Object.defineProperty(exports, "__esModule", {
@@ -151010,7 +151215,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       color: 'rgb(255, 255, 255)'
     }
   });
-},1027,[1,232,121,2,169],"node_modules/react-native-vision-camera/src/FpsGraph.tsx");
+},1028,[1,232,121,2,169],"node_modules/react-native-vision-camera/src/FpsGraph.tsx");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -151019,7 +151224,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   var _reactNative = _$$_REQUIRE(_dependencyMap[0], "react-native");
   // requireNativeComponent automatically resolves 'CameraView' to 'CameraViewManager'
   var NativeCameraView = exports.NativeCameraView = (0, _reactNative.requireNativeComponent)('CameraView');
-},1028,[2],"node_modules/react-native-vision-camera/src/NativeCameraView.ts");
+},1029,[2],"node_modules/react-native-vision-camera/src/NativeCameraView.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
   Object.defineProperty(exports, "__esModule", {
@@ -151084,7 +151289,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }));
   }
   var SkiaCameraCanvas = exports.SkiaCameraCanvas = _react.default.memo(SkiaCameraCanvasImpl);
-},1029,[1,40,232,121,169,1030,1032],"node_modules/react-native-vision-camera/src/skia/SkiaCameraCanvas.tsx");
+},1030,[1,40,232,121,169,1031,1033],"node_modules/react-native-vision-camera/src/skia/SkiaCameraCanvas.tsx");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -151104,7 +151309,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       throw new (_$$_REQUIRE(_dependencyMap[0], "./ModuleProxy").OptionalDependencyNotInstalledError)('react-native-reanimated');
     }
   });
-},1030,[1031,null],"node_modules/react-native-vision-camera/src/dependencies/ReanimatedProxy.ts");
+},1031,[1032,null],"node_modules/react-native-vision-camera/src/dependencies/ReanimatedProxy.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
   Object.defineProperty(exports, "__esModule", {
@@ -151156,7 +151361,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     (0, _inherits2.default)(OptionalDependencyNotInstalledError, _Error);
     return (0, _createClass2.default)(OptionalDependencyNotInstalledError);
   }(/*#__PURE__*/(0, _wrapNativeSuper2.default)(Error));
-},1031,[1,13,12,25,27,30,173],"node_modules/react-native-vision-camera/src/dependencies/ModuleProxy.ts");
+},1032,[1,13,12,25,27,30,173],"node_modules/react-native-vision-camera/src/dependencies/ModuleProxy.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -151176,7 +151381,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       throw new (_$$_REQUIRE(_dependencyMap[0], "./ModuleProxy").OptionalDependencyNotInstalledError)('@shopify/react-native-skia');
     }
   });
-},1032,[1031,null],"node_modules/react-native-vision-camera/src/dependencies/SkiaProxy.ts");
+},1033,[1032,null],"node_modules/react-native-vision-camera/src/dependencies/SkiaProxy.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -151201,46 +151406,46 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       return eventEmitter.addListener(DEVICES_CHANGED_NAME, callback);
     }
   };
-},1033,[2],"node_modules/react-native-vision-camera/src/CameraDevices.ts");
+},1034,[2],"node_modules/react-native-vision-camera/src/CameraDevices.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
   });
-},1034,[],"node_modules/react-native-vision-camera/src/types/CameraDevice.ts");
+},1035,[],"node_modules/react-native-vision-camera/src/types/CameraDevice.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
   });
-},1035,[],"node_modules/react-native-vision-camera/src/types/CameraProps.ts");
+},1036,[],"node_modules/react-native-vision-camera/src/types/CameraProps.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
   });
-},1036,[],"node_modules/react-native-vision-camera/src/types/Frame.ts");
-__d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {},1037,[],"node_modules/react-native-vision-camera/src/types/Orientation.ts");
-__d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {},1038,[],"node_modules/react-native-vision-camera/src/types/OutputOrientation.ts");
+},1037,[],"node_modules/react-native-vision-camera/src/types/Frame.ts");
+__d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {},1038,[],"node_modules/react-native-vision-camera/src/types/Orientation.ts");
+__d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {},1039,[],"node_modules/react-native-vision-camera/src/types/OutputOrientation.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
   });
-},1039,[],"node_modules/react-native-vision-camera/src/types/PhotoFile.ts");
+},1040,[],"node_modules/react-native-vision-camera/src/types/PhotoFile.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
   });
-},1040,[],"node_modules/react-native-vision-camera/src/types/Snapshot.ts");
-__d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {},1041,[],"node_modules/react-native-vision-camera/src/types/PixelFormat.ts");
-__d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {},1042,[],"node_modules/react-native-vision-camera/src/types/Point.ts");
+},1041,[],"node_modules/react-native-vision-camera/src/types/Snapshot.ts");
+__d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {},1042,[],"node_modules/react-native-vision-camera/src/types/PixelFormat.ts");
+__d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {},1043,[],"node_modules/react-native-vision-camera/src/types/Point.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
   });
-},1043,[],"node_modules/react-native-vision-camera/src/types/VideoFile.ts");
+},1044,[],"node_modules/react-native-vision-camera/src/types/VideoFile.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
   });
-},1044,[],"node_modules/react-native-vision-camera/src/types/CodeScanner.ts");
+},1045,[],"node_modules/react-native-vision-camera/src/types/CodeScanner.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -151398,7 +151603,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }
     return bestFormat;
   }
-},1045,[1022],"node_modules/react-native-vision-camera/src/devices/getCameraFormat.ts");
+},1046,[1023],"node_modules/react-native-vision-camera/src/devices/getCameraFormat.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -151455,7 +151660,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }
     return bestDevice;
   }
-},1046,[],"node_modules/react-native-vision-camera/src/devices/getCameraDevice.ts");
+},1047,[],"node_modules/react-native-vision-camera/src/devices/getCameraDevice.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -151560,7 +151765,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       photoResolution: InstagramResolution
     }]
   };
-},1047,[2],"node_modules/react-native-vision-camera/src/devices/Templates.ts");
+},1048,[2],"node_modules/react-native-vision-camera/src/devices/Templates.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -151588,7 +151793,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     [devices, position, JSON.stringify(filter)]);
     return device;
   }
-},1048,[121,1049,1046],"node_modules/react-native-vision-camera/src/hooks/useCameraDevice.ts");
+},1049,[121,1050,1047],"node_modules/react-native-vision-camera/src/hooks/useCameraDevice.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
   Object.defineProperty(exports, "__esModule", {
@@ -151621,7 +151826,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }, []);
     return devices;
   }
-},1049,[1,40,121,1033],"node_modules/react-native-vision-camera/src/hooks/useCameraDevices.ts");
+},1050,[1,40,121,1034],"node_modules/react-native-vision-camera/src/hooks/useCameraDevices.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -151654,7 +151859,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }, [device, JSON.stringify(filters)]);
     return format;
   }
-},1050,[121,1045],"node_modules/react-native-vision-camera/src/hooks/useCameraFormat.ts");
+},1051,[121,1046],"node_modules/react-native-vision-camera/src/hooks/useCameraFormat.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
   Object.defineProperty(exports, "__esModule", {
@@ -151752,7 +151957,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   function useLocationPermission() {
     return usePermission(_$$_REQUIRE(_dependencyMap[5], "../Camera").Camera.getLocationPermissionStatus, _$$_REQUIRE(_dependencyMap[5], "../Camera").Camera.requestLocationPermission);
   }
-},1051,[1,165,40,121,2,1020],"node_modules/react-native-vision-camera/src/hooks/useCameraPermission.ts");
+},1052,[1,165,40,121,2,1021],"node_modules/react-native-vision-camera/src/hooks/useCameraPermission.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
   Object.defineProperty(exports, "__esModule", {
@@ -151782,7 +151987,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [JSON.stringify(codeScannerOptions), callback]);
   }
-},1052,[1,232,121],"node_modules/react-native-vision-camera/src/hooks/useCodeScanner.ts");
+},1053,[1,232,121],"node_modules/react-native-vision-camera/src/hooks/useCodeScanner.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -151831,7 +152036,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       return createFrameProcessor(frameProcessor);
     }, dependencies);
   }
-},1053,[121,1054],"node_modules/react-native-vision-camera/src/hooks/useFrameProcessor.ts");
+},1054,[121,1055],"node_modules/react-native-vision-camera/src/hooks/useFrameProcessor.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -151861,7 +152066,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       }
     };
   }
-},1054,[1055],"node_modules/react-native-vision-camera/src/frame-processors/withFrameRefCounting.ts");
+},1055,[1056],"node_modules/react-native-vision-camera/src/frame-processors/withFrameRefCounting.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -151912,7 +152117,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     var message = safeError != null && 'message' in safeError ? safeError.message : 'Frame Processor threw an error.';
     rethrowErrorOnJS(message, safeError == null ? void 0 : safeError.stack);
   }
-},1055,[1056,1026],"node_modules/react-native-vision-camera/src/frame-processors/throwErrorOnJS.ts");
+},1056,[1057,1027],"node_modules/react-native-vision-camera/src/frame-processors/throwErrorOnJS.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -151932,7 +152137,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       throw new (_$$_REQUIRE(_dependencyMap[0], "./ModuleProxy").OptionalDependencyNotInstalledError)('react-native-worklets-core');
     }
   });
-},1056,[1031,null],"node_modules/react-native-vision-camera/src/dependencies/WorkletsProxy.ts");
+},1057,[1032,null],"node_modules/react-native-vision-camera/src/dependencies/WorkletsProxy.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -152033,7 +152238,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     // Call in separate background context
     runOnAsyncContext(frame, func);
   }
-},1057,[1056,1055,1026],"node_modules/react-native-vision-camera/src/frame-processors/runAsync.ts");
+},1058,[1057,1056,1027],"node_modules/react-native-vision-camera/src/frame-processors/runAsync.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -152096,7 +152301,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }
     return undefined;
   }
-},1058,[],"node_modules/react-native-vision-camera/src/frame-processors/runAtTargetFps.ts");
+},1059,[],"node_modules/react-native-vision-camera/src/frame-processors/runAtTargetFps.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   Object.defineProperty(exports, "__esModule", {
     value: true
@@ -152414,7 +152619,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     // eslint-disable-next-line react-hooks/exhaustive-deps
     dependencies);
   }
-},1059,[121,1032,1056,1054,1025],"node_modules/react-native-vision-camera/src/skia/useSkiaFrameProcessor.ts");
+},1060,[121,1033,1057,1055,1026],"node_modules/react-native-vision-camera/src/skia/useSkiaFrameProcessor.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
   Object.defineProperty(exports, "__esModule", {
@@ -152442,7 +152647,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       marginBottom: 18
     }
   });
-},1060,[1,121,2,169],"src/components/Card.tsx");
+},1061,[1,121,2,169],"src/components/Card.tsx");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
   Object.defineProperty(exports, "__esModule", {
@@ -152524,13 +152729,13 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       fontWeight: '800'
     }
   });
-},1061,[1,121,2,169],"src/components/FriendItem.tsx");
+},1062,[1,121,2,169],"src/components/FriendItem.tsx");
 __d(function(global, require, _importDefaultUnused, _importAllUnused, module, exports, _dependencyMapUnused) {
   module.exports = {
   "name": "Offlink",
   "displayName": "Offlink"
 }
 ;
-},1062,[],"app.json");
+},1063,[],"app.json");
 __r(64);
 __r(0);

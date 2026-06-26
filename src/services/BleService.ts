@@ -199,7 +199,7 @@ export async function startBleBroadcast(
     {
       advertiseMode: 2,
       txPowerLevel: 3,
-      connectable: false,
+      connectable: true,
       includeDeviceName: false,
       includeTxPowerLevel: false,
     },
@@ -235,6 +235,7 @@ export function startOfflinkScan(
 
     const userWithSignal = {
       ...user,
+      deviceId: device?.id,
       rssi: device?.rssi ?? undefined,
     };
 

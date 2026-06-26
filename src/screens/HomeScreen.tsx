@@ -17,6 +17,7 @@ import {ScannerScreen} from './ScannerScreen';
 import {OfflinkFriend, OfflinkProfile} from '../models/types';
 import {makeQrPayload, makeShortId, parseFriendInput} from '../services/FriendService';
 import {requestBlePermissions, startBleScanTest, startBleBroadcast, stopBleBroadcastTest, parseBleManufacturerData, startOfflinkScan} from '../services/BleService';
+import {startGattServer, stopGattServer, readGattPayloadFromNearest} from '../services/GattService';
 import {
   loadFriends,
   loadProfile,
@@ -49,6 +50,7 @@ export function HomeScreen({
   const [manualFriendId, setManualFriendId] = useState('');
   const [showDeveloperTools, setShowDeveloperTools] = useState(false);
   const [logoTapCount, setLogoTapCount] = useState(0);
+  const [nearestDeviceId, setNearestDeviceId] = useState<string | null>(null);
 
   const qrValue = useMemo(() => {
     return savedProfile ? makeQrPayload(savedProfile) : '';
@@ -239,8 +241,43 @@ export function HomeScreen({
     );
   }
 
+  async function handleStartGattServer() {
+    try {
+      await startGattServer('Hello from Offlink GATT');
+      Alert.alert('GATT server', 'Started. Nearby Offlink phones can now read the test payload.');
+    } catch (error) {
+      Alert.alert('GATT server failed', String(error));
+    }
+  }
+
+  async function handleStopGattServer() {
+    try {
+      await stopGattServer();
+      Alert.alert('GATT server', 'Stopped.');
+    } catch (error) {
+      Alert.alert('GATT stop failed', String(error));
+    }
+  }
+
+  async function handleReadGattFromNearest() {
+    try {
+      const payload = await readGattPayloadFromNearest();
+
+      Alert.alert(
+        'GATT read success',
+        payload || 'Read worked, but payload was empty.',
+      );
+    } catch (error) {
+      Alert.alert('GATT read failed', String(error));
+    }
+  }
+
   function handleStartLiveOfflinkScan() {
     const stopScan = startOfflinkScan(user => {
+      if (user.deviceId) {
+        setNearestDeviceId(user.deviceId);
+      }
+
       onNearbyUserFound?.(user);
     });
 
@@ -332,6 +369,27 @@ export function HomeScreen({
             <Button
               label="Decode BLE Payload Test"
               onPress={handleDecodeBleTest}
+            />
+
+            <View style={{height: 12}} />
+
+            <Button
+              label="Start GATT Server"
+              onPress={handleStartGattServer}
+            />
+
+            <View style={{height: 12}} />
+
+            <Button
+              label="Stop GATT Server"
+              onPress={handleStopGattServer}
+            />
+
+            <View style={{height: 12}} />
+
+            <Button
+              label="Read GATT From Nearby Phone"
+              onPress={handleReadGattFromNearest}
             />
 
             <View style={{height: 12}} />

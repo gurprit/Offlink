@@ -1,0 +1,111 @@
+import {NativeModules} from 'react-native';
+import {BleManager, Device} from 'react-native-ble-plx';
+import {parseBleManufacturerData} from './BleService';
+
+const SERVICE_UUID = '0000feed-0000-1000-8000-00805f9b34fb';
+const MESH_CHARACTERISTIC_UUID = '0000beef-0000-1000-8000-00805f9b34fb';
+
+const {OfflinkGatt} = NativeModules;
+const gattClient = new BleManager();
+
+function decodeBase64(value: string): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  let output = '';
+  let buffer = 0;
+  let bits = 0;
+
+  for (const char of value.replace(/=+$/, '')) {
+    const index = chars.indexOf(char);
+
+    if (index < 0) {
+      continue;
+    }
+
+    buffer = (buffer << 6) | index;
+    bits += 6;
+
+    if (bits >= 8) {
+      bits -= 8;
+      output += String.fromCharCode((buffer >> bits) & 0xff);
+    }
+  }
+
+  return output;
+}
+
+export async function startGattServer(payload = 'Hello from Offlink GATT'): Promise<void> {
+  await OfflinkGatt.startServer(payload);
+}
+
+export async function stopGattServer(): Promise<void> {
+  await OfflinkGatt.stopServer();
+}
+
+export async function setGattPayload(payload: string): Promise<void> {
+  await OfflinkGatt.setPayload(payload);
+}
+
+
+async function findNearestOfflinkDevice(timeoutMs = 6000): Promise<Device> {
+  return new Promise((resolve, reject) => {
+    let didFinish = false;
+
+    const timer = setTimeout(() => {
+      if (didFinish) {
+        return;
+      }
+
+      didFinish = true;
+      gattClient.stopDeviceScan();
+      reject(new Error('No Offlink BLE device found during GATT scan.'));
+    }, timeoutMs);
+
+    gattClient.startDeviceScan(null, null, (error, device) => {
+      if (didFinish) {
+        return;
+      }
+
+      if (error) {
+        didFinish = true;
+        clearTimeout(timer);
+        gattClient.stopDeviceScan();
+        reject(error);
+        return;
+      }
+
+      const user = parseBleManufacturerData(device?.manufacturerData);
+
+      if (!user || !device) {
+        return;
+      }
+
+      didFinish = true;
+      clearTimeout(timer);
+      gattClient.stopDeviceScan();
+
+      setTimeout(() => resolve(device), 500);
+    });
+  });
+}
+
+export async function readGattPayloadFromNearest(): Promise<string> {
+  const device = await findNearestOfflinkDevice();
+  return readGattPayloadFromDevice(device.id);
+}
+
+export async function readGattPayloadFromDevice(deviceId: string): Promise<string> {
+  const device = await gattClient.connectToDevice(deviceId, {timeout: 8000});
+
+  try {
+    await device.discoverAllServicesAndCharacteristics();
+
+    const characteristic = await device.readCharacteristicForService(
+      SERVICE_UUID,
+      MESH_CHARACTERISTIC_UUID,
+    );
+
+    return decodeBase64(characteristic.value || '');
+  } finally {
+    await gattClient.cancelDeviceConnection(device.id).catch(() => {});
+  }
+}
