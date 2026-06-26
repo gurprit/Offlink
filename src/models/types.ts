@@ -14,6 +14,9 @@ export type NearbyOfflinkUser = {
   emoji: string;
   lastSeenAt: number;
   rssi?: number;
+  latitude?: number;
+  longitude?: number;
+  accuracy?: number;
 };
 
 

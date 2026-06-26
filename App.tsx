@@ -72,11 +72,14 @@ export default function App() {
           location => {
             currentLocationRef.current = location;
             setCurrentLocation(location);
+            startBleBroadcast(savedProfile, location).catch(error =>
+              console.log('OFFLINK_BROADCAST_LOCATION_ERROR', error),
+            );
           },
           error => console.log('OFFLINK_LOCATION_WATCH_ERROR', error),
         );
 
-        await startBleBroadcast(savedProfile);
+        await startBleBroadcast(savedProfile, currentLocationRef.current);
 
         stopScan = startOfflinkScan(user => {
           handleNearbyUserFound(user);
@@ -127,6 +130,10 @@ export default function App() {
     });
 
     setSightings(currentSightings => {
+      const existingSighting = currentSightings.find(
+        sighting => sighting.userId === user.userId,
+      );
+
       const directSighting: OfflinkSighting = {
         userId: user.userId,
         emoji: user.emoji,
@@ -136,9 +143,9 @@ export default function App() {
         source: 'direct',
         rssi: user.rssi,
         hops: 0,
-        latitude: location?.latitude,
-        longitude: location?.longitude,
-        accuracy: location?.accuracy,
+        latitude: user.latitude ?? location?.latitude ?? existingSighting?.latitude,
+        longitude: user.longitude ?? location?.longitude ?? existingSighting?.longitude,
+        accuracy: user.accuracy ?? location?.accuracy ?? existingSighting?.accuracy,
       };
 
       const nextSightings = [
@@ -176,6 +183,7 @@ export default function App() {
     return (
       <MapScreen
         sightings={sightings}
+        friends={friends}
         currentLocation={currentLocation}
         onBack={() => setShowMap(false)}
       />
