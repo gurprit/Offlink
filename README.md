@@ -1,97 +1,282 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# 🛰️ Offlink
 
-# Getting Started
+> **An experimental offline Bluetooth mesh network for finding friends without internet, mobile signal or Wi-Fi.**
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android)
+![React Native](https://img.shields.io/badge/React%20Native-0.8x-61DAFB?logo=react)
+![Status](https://img.shields.io/badge/Status-Experimental-orange)
+![License](https://img.shields.io/badge/License-MIT-blue)
 
-## Step 1: Start Metro
+---
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+# Overview
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+Offlink is an experimental Android application that allows devices to exchange location information entirely offline using Bluetooth Low Energy.
 
-```sh
-# Using npm
-npm start
+Instead of relying on mobile networks or cloud servers, nearby devices exchange mesh packets directly with one another and relay information throughout a crowd.
 
-# OR using Yarn
-yarn start
+The long-term goal is to allow friends to locate one another at places where internet access is unavailable or unreliable, including:
+
+- 🎵 Music festivals
+- 🏕️ Hiking
+- 🏟 Sporting events
+- 🎮 Conventions
+- 🚨 Emergency situations
+- 🌍 Disaster recovery
+
+---
+
+# How It Works
+
+```text
+BLE Advertisement
+        │
+        ▼
+Discover nearby devices
+        │
+        ▼
+Bluetooth GATT Connection
+        │
+        ▼
+Exchange Mesh Packets
+        │
+        ▼
+Merge Sighting Database
+        │
+        ▼
+Queue Relay Packet
+        │
+        ▼
+Forward to next nearby device
 ```
 
-## Step 2: Build and run your app
+---
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+# Architecture
 
-### Android
+```text
+                           Offlink
 
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+┌──────────────────────────────────────────────────────┐
+│                      App.tsx                         │
+│                                                      │
+│  • Friends                                           │
+│  • Nearby Users                                      │
+│  • Sightings                                         │
+│  • Current Location                                  │
+└──────────────────────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────┐
+│                  BLE Discovery                       │
+│                                                      │
+│ Broadcast:                                           │
+│                                                      │
+│     OL | UserID | Emoji                              │
+└──────────────────────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────┐
+│                  GATT Transport                      │
+│                                                      │
+│ Rich mesh packet exchange                            │
+└──────────────────────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────┐
+│                   Mesh Engine                        │
+│                                                      │
+│ • Packet IDs                                         │
+│ • TTL                                                │
+│ • Duplicate Detection                                │
+│ • Relay Decisions                                    │
+└──────────────────────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────┐
+│                 Mesh Sync Service                    │
+│                                                      │
+│ Merge sightings                                       │
+│ Update database                                       │
+└──────────────────────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────┐
+│                 Mesh Relay Queue                     │
+│                                                      │
+│ Queue packets awaiting forwarding                    │
+└──────────────────────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────┐
+│                 Mesh Dispatcher                      │
+│                                                      │
+│ Event-driven packet transmission                     │
+└──────────────────────────────────────────────────────┘
 ```
 
-### iOS
+---
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+# Mesh Packet Format
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+```json
+{
+  "id": "MQVJ6VCP-CR434K8A",
+  "origin": "OL-1ABNVZ",
+  "ttl": 5,
+  "timestamp": 1782514639000,
+  "payload": {
+    "senderId": "OL-1ABNVZ",
+    "createdAt": 1782514639000,
+    "sightings": [
+      {
+        "userId": "...",
+        "latitude": 51.5,
+        "longitude": -0.12
+      }
+    ]
+  }
+}
 ```
 
-Then, and every time you update your native dependencies, run:
+---
 
-```sh
-bundle exec pod install
+# Current Features
+
+| Feature | Status |
+|---------|:------:|
+| BLE Advertising | ✅ |
+| BLE Discovery | ✅ |
+| Bluetooth GATT Transport | ✅ |
+| Friend Detection | ✅ |
+| Nearby Sightings | ✅ |
+| Offline Map | ✅ |
+| Mesh Packet Protocol | ✅ |
+| Packet IDs | ✅ |
+| Time-To-Live (TTL) | ✅ |
+| Duplicate Detection | ✅ |
+| Relay Queue | ✅ |
+| Event-Driven Dispatch | ✅ |
+| Two Device Testing | ✅ |
+
+---
+
+# Current Development Roadmap
+
+## ✅ Phase 1
+
+- Project setup
+- React Native
+- Android
+
+## ✅ Phase 2
+
+- Bluetooth discovery
+- BLE advertisements
+
+## ✅ Phase 3
+
+- Bluetooth GATT transport
+- Mesh payload exchange
+
+## ✅ Phase 4
+
+- Mesh packet protocol
+- Packet IDs
+- TTL
+- Duplicate detection
+- Relay queue
+- Event-driven dispatcher
+
+## 🚧 Phase 5
+
+- Reliable GATT transport
+- Connection manager
+- Retry logic
+- Connection cooldowns
+
+## 📋 Planned
+
+- Multi-hop routing
+- Store-and-forward networking
+- Packet acknowledgements
+- Routing optimisation
+- Battery optimisation
+- Encryption
+- Group messaging
+- Offline chat
+- Emergency broadcast mode
+
+---
+
+# Design Philosophy
+
+BLE advertisements remain intentionally tiny.
+
+```text
+BLE
+↓
+
+"I exist."
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+Everything else happens over GATT.
 
-```sh
-# Using npm
-npm run ios
+```text
+GATT
+↓
 
-# OR using Yarn
-yarn ios
+Everything interesting.
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+This keeps Bluetooth advertisements within Android's strict payload limits while allowing the mesh protocol to evolve independently.
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+---
 
-## Step 3: Modify your app
+# Long-Term Vision
 
-Now that you have successfully run the app, let's make changes!
+Imagine a festival:
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+```text
+🙂────🙂────🙂
+│           │
+🙂────🙂────🙂
+      │
+      ⭐
+```
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+Alice never comes into Bluetooth range of Bob.
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+Instead, her location propagates naturally through nearby Offlink users until it eventually reaches Bob.
 
-## Congratulations! :tada:
+No internet.
 
-You've successfully run and modified your React Native App. :partying_face:
+No servers.
 
-### Now what?
+No mobile signal.
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+Just people carrying information through the crowd.
 
-# Troubleshooting
+---
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+# Technology
 
-# Learn More
+- React Native
+- TypeScript
+- Bluetooth Low Energy
+- Bluetooth GATT
+- MapLibre
+- Android
 
-To learn more about React Native, take a look at the following resources:
+---
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+# Current Status
+
+> Experimental
+
+The project is under active development and currently focuses on building a reliable Bluetooth mesh transport layer before introducing larger-scale multi-hop networking.
+
+EOF
+
+echo "✅ README updated."
+````
