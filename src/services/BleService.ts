@@ -65,23 +65,6 @@ function decodeEmojiFromBle(value: string): string {
   return ALL_EMOJIS[index] || '🙂';
 }
 
-function encodeCoordinate(value: number | undefined): string {
-  return typeof value === 'number' ? value.toFixed(5) : '';
-}
-
-function encodeAccuracy(value: number | undefined): string {
-  return typeof value === 'number' ? String(Math.round(value)) : '';
-}
-
-function decodeOptionalNumber(value: string | undefined): number | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
 export function makeBlePayload(
   profile: OfflinkProfile,
   location?: OfflinkLocation | null,
@@ -90,9 +73,6 @@ export function makeBlePayload(
     BLE_APP_PREFIX,
     profile.userId,
     encodeEmojiForBle(profile.emoji || '🙂'),
-    encodeCoordinate(location?.latitude),
-    encodeCoordinate(location?.longitude),
-    encodeAccuracy(location?.accuracy),
   ].join('|');
 }
 
@@ -103,11 +83,8 @@ export function parseBlePayload(input: string): NearbyOfflinkUser | null {
     return null;
   }
 
-  const [prefix, userId, emojiValue, latitudeValue, longitudeValue, accuracyValue] = parts;
+  const [prefix, userId, emojiValue] = parts;
   const emoji = decodeEmojiFromBle(emojiValue);
-  const latitude = decodeOptionalNumber(latitudeValue);
-  const longitude = decodeOptionalNumber(longitudeValue);
-  const accuracy = decodeOptionalNumber(accuracyValue);
 
   if (prefix !== BLE_APP_PREFIX || !userId || !emoji) {
     return null;
@@ -117,9 +94,6 @@ export function parseBlePayload(input: string): NearbyOfflinkUser | null {
     userId,
     emoji,
     lastSeenAt: Date.now(),
-    latitude,
-    longitude,
-    accuracy,
   };
 }
 

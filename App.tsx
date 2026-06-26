@@ -14,6 +14,11 @@ import {
   stopBleBroadcastTest,
 } from './src/services/BleService';
 import {OfflinkLocation, watchCurrentLocation} from './src/services/LocationService';
+import {readGattPayloadFromDevice, setGattPayload, startGattServer} from './src/services/GattService';
+import {createMeshPayload, mergeMeshSightings, parseMeshPayload, stringifyMeshEnvelope} from './src/services/MeshSyncService';
+import {evaluateMeshPacket, relayPacket} from './src/services/MeshEngine';
+import {enqueueRelayPacket, getRelayQueueSize} from './src/services/MeshRelayQueue';
+import {dispatchNextMeshPacket} from './src/services/MeshDispatcher';
 
 export default function App() {
   const [showNearby, setShowNearby] = useState(false);
@@ -26,6 +31,10 @@ export default function App() {
   const [ownUserId, setOwnUserId] = useState<string | null>(null);
   const [currentLocation, setCurrentLocation] = useState<OfflinkLocation | null>(null);
   const currentLocationRef = useRef<OfflinkLocation | null>(null);
+  const ownUserIdRef = useRef<string | null>(null);
+  const sightingsRef = useRef<OfflinkSighting[]>([]);
+  const syncInFlightRef = useRef<Set<string>>(new Set());
+  const lastGattSyncRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     let stopScan: (() => void) | null = null;
@@ -47,6 +56,7 @@ export default function App() {
       }
 
       setFriends(savedFriends);
+      sightingsRef.current = savedSightings;
       setSightings(savedSightings);
 
       if (!savedProfile) {
@@ -54,6 +64,7 @@ export default function App() {
         return;
       }
 
+      ownUserIdRef.current = savedProfile.userId;
       setOwnUserId(savedProfile.userId);
 
       const granted = await requestBlePermissions();
@@ -80,6 +91,10 @@ export default function App() {
         );
 
         await startBleBroadcast(savedProfile, currentLocationRef.current);
+
+        await startGattServer(
+          createMeshPayload(savedProfile.userId, sightingsRef.current),
+        );
 
         stopScan = startOfflinkScan(user => {
           handleNearbyUserFound(user);
@@ -114,6 +129,104 @@ export default function App() {
 
     return nearbyUsers.filter(user => friendIds.has(user.userId));
   }, [friends, nearbyUsers]);
+
+  function publishGattMesh(nextSightings: OfflinkSighting[]) {
+    const userId = ownUserIdRef.current;
+
+    if (!userId) {
+      return;
+    }
+
+    setGattPayload(createMeshPayload(userId, nextSightings)).catch(error =>
+      console.log('OFFLINK_GATT_PAYLOAD_ERROR', error),
+    );
+  }
+
+  async function syncMeshFromDevice(user: NearbyOfflinkUser) {
+    if (!user.deviceId || !ownUserIdRef.current) {
+      return;
+    }
+
+    const lastSyncAt = lastGattSyncRef.current[user.deviceId] || 0;
+
+    if (Date.now() - lastSyncAt < 30000) {
+      return;
+    }
+
+    if (syncInFlightRef.current.has(user.deviceId)) {
+      return;
+    }
+
+    syncInFlightRef.current.add(user.deviceId);
+    lastGattSyncRef.current[user.deviceId] = Date.now();
+
+    try {
+      const rawPayload = await readGattPayloadFromDevice(user.deviceId);
+      const envelope = parseMeshPayload(rawPayload);
+
+      if (!envelope) {
+        console.log('OFFLINK_MESH_PACKET_DROP', 'parse-failed');
+        return;
+      }
+
+      const decision = evaluateMeshPacket(envelope, ownUserIdRef.current);
+
+      console.log(
+        'OFFLINK_MESH_PACKET_DECISION',
+        JSON.stringify({
+          packetId: envelope.id,
+          origin: envelope.origin,
+          ttl: envelope.ttl,
+          reason: decision.reason,
+          accepted: decision.accepted,
+          shouldRelay: decision.shouldRelay,
+          sightings: envelope.payload.sightings.length,
+        }),
+      );
+
+      if (!decision.accepted) {
+        return;
+      }
+
+      const payload = envelope.payload;
+
+      setSightings(currentSightings => {
+        const nextSightings = mergeMeshSightings({
+          currentSightings,
+          incomingSightings: payload.sightings,
+          ownUserId: ownUserIdRef.current,
+          seenBy: payload.senderId,
+        });
+
+        sightingsRef.current = nextSightings;
+        saveSightings(nextSightings).catch(() => {});
+
+        if (decision.shouldRelay) {
+          const relayedEnvelope = relayPacket(envelope);
+          const didQueue = enqueueRelayPacket(relayedEnvelope);
+
+          console.log(
+            'OFFLINK_MESH_PACKET_RELAY',
+            JSON.stringify({
+              packetId: relayedEnvelope.id,
+              origin: relayedEnvelope.origin,
+              ttl: relayedEnvelope.ttl,
+              queued: didQueue,
+              queueSize: getRelayQueueSize(),
+            }),
+          );
+        }
+
+        publishGattMesh(nextSightings);
+
+        return nextSightings;
+      });
+    } catch (error) {
+      console.log('OFFLINK_GATT_SYNC_ERROR', String(error));
+    } finally {
+      syncInFlightRef.current.delete(user.deviceId);
+    }
+  }
 
   function handleNearbyUserFound(user: NearbyOfflinkUser) {
     const location = currentLocationRef.current;
@@ -155,9 +268,17 @@ export default function App() {
         .filter(sighting => Date.now() - sighting.lastSeenAt < 1000 * 60 * 60)
         .sort((a, b) => b.lastSeenAt - a.lastSeenAt);
 
+      sightingsRef.current = nextSightings;
       saveSightings(nextSightings).catch(() => {});
+      publishGattMesh(nextSightings);
       return nextSightings;
     });
+
+    dispatchNextMeshPacket('nearby-user-found').catch(error =>
+      console.log('OFFLINK_MESH_DISPATCH_ERROR', String(error)),
+    );
+
+    syncMeshFromDevice(user);
 
     setFriends(currentFriends => {
       const didFindFriend = currentFriends.some(
