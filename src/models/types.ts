@@ -34,3 +34,31 @@ export type OfflinkSighting = {
   longitude?: number;
   accuracy?: number;
 };
+
+export type MeshDiagnosticsLastPacket = {
+  id: string;
+  origin: string;
+  ttl: number;
+  hopCount: number;
+  timestamp: number;
+  event: 'created' | 'received' | 'relayed' | 'dropped';
+  reason?: string;
+};
+
+export type MeshDiagnosticsSnapshot = {
+  packetsCreated: number;
+  packetsReceived: number;
+  packetsRelayed: number;
+  packetsDropped: number;
+  duplicatesDropped: number;
+  ttlExpired: number;
+  invalidPackets: number;
+  relayFailures: number;
+  currentQueueSize: number;
+  queuePeak: number;
+  lastRelayDelayMs: number | null;
+  averageRelayDelayMs: number | null;
+  lastPacket: MeshDiagnosticsLastPacket | null;
+  updatedAt: number;
+};
+

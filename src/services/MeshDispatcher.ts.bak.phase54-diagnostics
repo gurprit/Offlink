@@ -1,11 +1,6 @@
 import {setGattPayload} from './GattService';
 import {getNextRelayPacket, getRelayQueueSize} from './MeshRelayQueue';
 import {stringifyMeshEnvelope} from './MeshSyncService';
-import {
-  recordMeshPacketRelayed,
-  recordMeshRelayDelay,
-  recordMeshRelayFailure,
-} from './MeshDiagnosticsService';
 
 const MIN_RELAY_DELAY_MS = 100;
 const MAX_RELAY_DELAY_MS = 500;
@@ -61,7 +56,6 @@ async function runScheduledDispatch(reason: string): Promise<boolean> {
     );
 
     await setGattPayload(stringifyMeshEnvelope(nextPacket));
-    recordMeshPacketRelayed(nextPacket);
     return true;
   } finally {
     dispatchInFlight = false;
@@ -76,7 +70,6 @@ export async function dispatchNextMeshPacket(
   }
 
   const relayDelay = getRandomRelayDelay();
-  recordMeshRelayDelay(relayDelay);
 
   console.log(
     'OFFLINK_MESH_DISPATCH_SCHEDULED',
@@ -94,7 +87,6 @@ export async function dispatchNextMeshPacket(
       runScheduledDispatch(reason)
         .then(resolve)
         .catch(error => {
-          recordMeshRelayFailure();
           console.log('OFFLINK_MESH_DISPATCH_RUN_ERROR', String(error));
           resolve(false);
         });

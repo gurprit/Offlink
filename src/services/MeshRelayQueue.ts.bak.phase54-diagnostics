@@ -1,5 +1,4 @@
 import {OfflinkMeshEnvelope} from './MeshSyncService';
-import {recordMeshQueueSize} from './MeshDiagnosticsService';
 
 const MAX_QUEUE_SIZE = 50;
 const MAX_PACKET_AGE_MS = 1000 * 60 * 10;
@@ -54,8 +53,6 @@ export function enqueueRelayPacket(packet: OfflinkMeshEnvelope): boolean {
     return b.timestamp - a.timestamp;
   });
 
-  recordMeshQueueSize(queue.length);
-
   return true;
 }
 
@@ -69,7 +66,6 @@ export function getNextRelayPacket(): OfflinkMeshEnvelope | null {
   }
 
   queuedPacketIds.delete(packet.id);
-  recordMeshQueueSize(queue.length);
 
   return packet;
 }
@@ -82,5 +78,4 @@ export function getRelayQueueSize(): number {
 export function clearRelayQueue() {
   queue.splice(0, queue.length);
   queuedPacketIds.clear();
-  recordMeshQueueSize(queue.length);
 }

@@ -1,9 +1,4 @@
 import 'react-native-get-random-values';
-import {
-  recordMeshPacketAccepted,
-  recordMeshPacketCreated,
-  recordMeshPacketDropped,
-} from './MeshDiagnosticsService';
 
 const DEFAULT_TTL = 5;
 const MAX_CACHE = 500;
@@ -58,7 +53,7 @@ export function createMeshPacket<T>(
   origin: string,
   payload: T,
 ): MeshPacket<T> {
-  const packet = {
+  return {
     id: generatePacketId(),
     origin,
     ttl: DEFAULT_TTL,
@@ -66,10 +61,6 @@ export function createMeshPacket<T>(
     timestamp: Date.now(),
     payload,
   };
-
-  recordMeshPacketCreated(packet);
-
-  return packet;
 }
 
 export function evaluateMeshPacket<T>(
@@ -84,8 +75,6 @@ export function evaluateMeshPacket<T>(
     typeof packet.ttl !== 'number' ||
     typeof packet.hopCount !== 'number'
   ) {
-    recordMeshPacketDropped(packet, 'invalid');
-
     return {
       accepted: false,
       shouldRelay: false,
@@ -94,8 +83,6 @@ export function evaluateMeshPacket<T>(
   }
 
   if (seenPackets.has(packet.id)) {
-    recordMeshPacketDropped(packet, 'duplicate');
-
     return {
       accepted: false,
       shouldRelay: false,
@@ -106,8 +93,6 @@ export function evaluateMeshPacket<T>(
   seenPackets.set(packet.id, Date.now());
 
   if (packet.origin && ownUserId && packet.origin === ownUserId) {
-    recordMeshPacketDropped(packet, 'own-origin');
-
     return {
       accepted: false,
       shouldRelay: false,
@@ -116,16 +101,12 @@ export function evaluateMeshPacket<T>(
   }
 
   if (packet.ttl <= 0) {
-    recordMeshPacketDropped(packet, 'expired');
-
     return {
       accepted: false,
       shouldRelay: false,
       reason: 'expired',
     };
   }
-
-  recordMeshPacketAccepted(packet);
 
   return {
     accepted: true,
