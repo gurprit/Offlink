@@ -41,18 +41,6 @@ export function enqueueRelayPacket(packet: OfflinkMeshEnvelope): boolean {
   queue.push(packet);
   queuedPacketIds.add(packet.id);
 
-  queue.sort((a, b) => {
-    if (a.ttl !== b.ttl) {
-      return b.ttl - a.ttl;
-    }
-
-    if (a.hopCount !== b.hopCount) {
-      return a.hopCount - b.hopCount;
-    }
-
-    return b.timestamp - a.timestamp;
-  });
-
   return true;
 }
 

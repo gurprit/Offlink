@@ -10,7 +10,6 @@ export type MeshPacket<T> = {
   id: string;
   origin: string;
   ttl: number;
-  hopCount: number;
   timestamp: number;
   payload: T;
 };
@@ -57,7 +56,6 @@ export function createMeshPacket<T>(
     id: generatePacketId(),
     origin,
     ttl: DEFAULT_TTL,
-    hopCount: 0,
     timestamp: Date.now(),
     payload,
   };
@@ -69,12 +67,7 @@ export function evaluateMeshPacket<T>(
 ): MeshPacketDecision {
   pruneSeenPackets();
 
-  if (
-    !packet.id ||
-    !packet.origin ||
-    typeof packet.ttl !== 'number' ||
-    typeof packet.hopCount !== 'number'
-  ) {
+  if (!packet.id || !packet.origin || typeof packet.ttl !== 'number') {
     return {
       accepted: false,
       shouldRelay: false,
@@ -132,6 +125,5 @@ export function relayPacket<T>(
   return {
     ...packet,
     ttl: packet.ttl - 1,
-    hopCount: packet.hopCount + 1,
   };
 }
