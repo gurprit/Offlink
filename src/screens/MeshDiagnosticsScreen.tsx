@@ -146,13 +146,20 @@ export function MeshDiagnosticsScreen({onBack}: {onBack: () => void}) {
               <View key={node.id} style={styles.nodeCard}>
                 <View style={styles.nodeHeader}>
                   <Text style={styles.nodeName}>{node.name || '🙂'} {node.id}</Text>
-                  <Text style={styles.nodeBadge}>Hop {node.hops}</Text>
+                  <Text
+                    style={[
+                      styles.nodeBadge,
+                      node.connected ? styles.directBadge : styles.remoteBadge,
+                    ]}>
+                    {node.connected ? 'Direct' : `Hop ${node.hops}`}
+                  </Text>
                 </View>
 
                 <StatRow label="RSSI" value={`${node.rssi} dBm`} />
                 <StatRow label="Last seen" value={formatAge(node.lastSeen)} />
                 <StatRow label="Via" value={node.via || 'direct'} />
-                <StatRow label="Connected" value={node.connected ? 'yes' : 'no'} />
+                <StatRow label="Route" value={node.connected ? 'direct BLE' : `remote via ${node.via}`} />
+                <StatRow label="Discovery" value={node.discoveredVia} />
               </View>
             ))
           )}
@@ -319,6 +326,14 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     overflow: 'hidden',
   },
+  directBadge: {
+    backgroundColor: '#fff',
+  },
+  remoteBadge: {
+    backgroundColor: '#999',
+  },
+
+
   empty: {
     color: '#aaa',
     fontSize: 14,

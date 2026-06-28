@@ -102402,6 +102402,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   var lastPublishedPayload = '';
   var publishPromise = null;
   var TOPOLOGY_PUBLISH_THROTTLE_MS = 5000;
+  var lastSequenceByNode = {};
   function publishLocalTopology(_x) {
     return _publishLocalTopology.apply(this, arguments);
   }
@@ -102432,10 +102433,21 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     return _publishLocalTopology.apply(this, arguments);
   }
   function applyTopologyPayload(payload) {
+    var _lastSequenceByNode$s;
     var summary = (0, _$$_REQUIRE(_dependencyMap[3], "./MeshTopologyProtocol").decodeMeshTopologySummary)(payload);
     if (!summary) {
       return false;
     }
+    var lastSequence = (_lastSequenceByNode$s = lastSequenceByNode[summary.nodeId]) != null ? _lastSequenceByNode$s : 0;
+    if (summary.sequence <= lastSequence) {
+      console.log('OFFLINK_TOPOLOGY_STALE', JSON.stringify({
+        nodeId: summary.nodeId,
+        sequence: summary.sequence,
+        lastSequence: lastSequence
+      }));
+      return true;
+    }
+    lastSequenceByNode[summary.nodeId] = summary.sequence;
     console.log('OFFLINK_TOPOLOGY_APPLY', JSON.stringify(summary));
     for (var neighbour of summary.neighbours) {
       if (neighbour.id === summary.nodeId) {
@@ -102755,9 +102767,9 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
                 children: [/*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.Text, {
                   style: styles.nodeName,
                   children: [node.name || '🙂', " ", node.id]
-                }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.Text, {
-                  style: styles.nodeBadge,
-                  children: ["Hop ", node.hops]
+                }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+                  style: [styles.nodeBadge, node.connected ? styles.directBadge : styles.remoteBadge],
+                  children: node.connected ? 'Direct' : `Hop ${node.hops}`
                 })]
               }), /*#__PURE__*/(0, _jsxRuntime.jsx)(StatRow, {
                 label: "RSSI",
@@ -102769,8 +102781,11 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
                 label: "Via",
                 value: node.via || 'direct'
               }), /*#__PURE__*/(0, _jsxRuntime.jsx)(StatRow, {
-                label: "Connected",
-                value: node.connected ? 'yes' : 'no'
+                label: "Route",
+                value: node.connected ? 'direct BLE' : `remote via ${node.via}`
+              }), /*#__PURE__*/(0, _jsxRuntime.jsx)(StatRow, {
+                label: "Discovery",
+                value: node.discoveredVia
               })]
             }, node.id);
           })]
@@ -102966,6 +102981,12 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       paddingVertical: 3,
       borderRadius: 999,
       overflow: 'hidden'
+    },
+    directBadge: {
+      backgroundColor: '#fff'
+    },
+    remoteBadge: {
+      backgroundColor: '#999'
     },
     empty: {
       color: '#aaa',

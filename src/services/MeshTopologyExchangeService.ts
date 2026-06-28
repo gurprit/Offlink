@@ -13,6 +13,7 @@ let lastPublishAt = 0;
 let lastPublishedPayload = '';
 let publishPromise: Promise<string> | null = null;
 const TOPOLOGY_PUBLISH_THROTTLE_MS = 5000;
+const lastSequenceByNode: Record<string, number> = {};
 
 export async function publishLocalTopology(selfId: string): Promise<string> {
   const now = Date.now();
@@ -56,6 +57,23 @@ export function applyTopologyPayload(payload: string): boolean {
   if (!summary) {
     return false;
   }
+
+  const lastSequence = lastSequenceByNode[summary.nodeId] ?? 0;
+
+  if (summary.sequence <= lastSequence) {
+    console.log(
+      'OFFLINK_TOPOLOGY_STALE',
+      JSON.stringify({
+        nodeId: summary.nodeId,
+        sequence: summary.sequence,
+        lastSequence,
+      }),
+    );
+
+    return true;
+  }
+
+  lastSequenceByNode[summary.nodeId] = summary.sequence;
 
   console.log('OFFLINK_TOPOLOGY_APPLY', JSON.stringify(summary));
 
