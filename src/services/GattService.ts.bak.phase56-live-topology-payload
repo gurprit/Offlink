@@ -2,7 +2,7 @@ import {NativeModules} from 'react-native';
 import {BleManager, Device} from 'react-native-ble-plx';
 import {parseBleManufacturerData} from './BleService';
 import MeshTopology from './MeshTopology';
-import {createMeshTopologySummary, decodeMeshTopologySummary, encodeMeshTopologySummary} from './MeshTopologyProtocol';
+import {decodeMeshTopologySummary} from './MeshTopologyProtocol';
 
 const SERVICE_UUID = '0000feed-0000-1000-8000-00805f9b34fb';
 const MESH_CHARACTERISTIC_UUID = '0000beef-0000-1000-8000-00805f9b34fb';
@@ -139,16 +139,4 @@ export async function readTopologyFromNearest(): Promise<string> {
   }
 
   return payload;
-}
-
-
-export async function publishTopologyToGatt(selfId: string): Promise<string> {
-  const summary = createMeshTopologySummary(selfId, MeshTopology.getTopology());
-  const encoded = encodeMeshTopologySummary(summary);
-
-  await setGattPayload(encoded);
-
-  console.log('OFFLINK_TOPOLOGY_PUBLISHED', encoded);
-
-  return encoded;
 }

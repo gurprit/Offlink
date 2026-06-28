@@ -20,7 +20,6 @@ import {createMeshPayload, mergeMeshSightings, parseMeshPayload, stringifyMeshEn
 import {evaluateMeshPacket, relayPacket} from './src/services/MeshEngine';
 import {enqueueRelayPacket, getRelayQueueSize} from './src/services/MeshRelayQueue';
 import {dispatchNextMeshPacket} from './src/services/MeshDispatcher';
-import {applyTopologyPayload, publishLocalTopology} from './src/services/MeshTopologyExchangeService';
 
 export default function App() {
   const [showNearby, setShowNearby] = useState(false);
@@ -99,10 +98,6 @@ export default function App() {
           createMeshPayload(savedProfile.userId, sightingsRef.current),
         );
 
-        publishLocalTopology(savedProfile.userId).catch(error =>
-          console.log('OFFLINK_TOPOLOGY_INITIAL_PUBLISH_ERROR', String(error)),
-        );
-
         stopScan = startOfflinkScan(user => {
           handleNearbyUserFound(user);
         });
@@ -144,8 +139,8 @@ export default function App() {
       return;
     }
 
-    publishLocalTopology(userId).catch(error =>
-      console.log('OFFLINK_TOPOLOGY_PUBLISH_ERROR', String(error)),
+    setGattPayload(createMeshPayload(userId, nextSightings)).catch(error =>
+      console.log('OFFLINK_GATT_PAYLOAD_ERROR', error),
     );
   }
 
@@ -169,12 +164,6 @@ export default function App() {
 
     try {
       const rawPayload = await readGattPayloadFromDevice(user.deviceId);
-
-      if (applyTopologyPayload(rawPayload)) {
-        console.log('OFFLINK_TOPOLOGY_SYNC_APPLIED', user.userId);
-        return;
-      }
-
       const envelope = parseMeshPayload(rawPayload);
 
       if (!envelope) {

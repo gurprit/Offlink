@@ -1,0 +1,57 @@
+import MeshTopology from './MeshTopology';
+import {
+  createMeshTopologySummary,
+  decodeMeshTopologySummary,
+  encodeMeshTopologySummary,
+} from './MeshTopologyProtocol';
+import {
+  readGattPayloadFromNearest,
+  setGattPayload,
+} from './GattService';
+
+export async function publishLocalTopology(selfId: string): Promise<string> {
+  const summary = createMeshTopologySummary(selfId, MeshTopology.getTopology());
+  const encoded = encodeMeshTopologySummary(summary);
+
+  await setGattPayload(encoded);
+
+  console.log('OFFLINK_TOPOLOGY_PUBLISHED', encoded);
+
+  return encoded;
+}
+
+
+export function applyTopologyPayload(payload: string): boolean {
+  const summary = decodeMeshTopologySummary(payload);
+
+  if (!summary) {
+    return false;
+  }
+
+  console.log('OFFLINK_TOPOLOGY_APPLY', JSON.stringify(summary));
+
+  for (const neighbour of summary.neighbours) {
+    if (neighbour.id === summary.nodeId) {
+      continue;
+    }
+
+    MeshTopology.updateRemoteNode(
+      neighbour.id,
+      'remote',
+      neighbour.quality,
+      neighbour.hops + 1,
+      summary.nodeId,
+    );
+  }
+
+  return true;
+}
+
+export async function readAndApplyNearbyTopology(): Promise<string> {
+  const payload = await readGattPayloadFromNearest();
+  if (!applyTopologyPayload(payload)) {
+    console.log('OFFLINK_TOPOLOGY_READ_IGNORED', payload);
+  }
+
+  return payload;
+}

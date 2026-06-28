@@ -1,0 +1,265 @@
+import React, {useEffect, useState} from 'react';
+import {
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import {Button} from '../components/Button';
+import {MeshDiagnosticsSnapshot} from '../models/types';
+import {MeshNode} from '../models/MeshNode';
+import MeshTopology from '../services/MeshTopology';
+import {
+  getMeshDiagnosticsSnapshot,
+  resetMeshDiagnostics,
+} from '../services/MeshDiagnosticsService';
+
+function formatAge(timestamp?: number): string {
+  if (!timestamp) {
+    return 'n/a';
+  }
+
+  const ageMs = Math.max(0, Date.now() - timestamp);
+
+  if (ageMs < 1000) {
+    return `${ageMs}ms ago`;
+  }
+
+  return `${Math.floor(ageMs / 1000)}s ago`;
+}
+
+function StatRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <View style={styles.statRow}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{value}</Text>
+    </View>
+  );
+}
+
+export function MeshDiagnosticsScreen({onBack}: {onBack: () => void}) {
+  const [snapshot, setSnapshot] = useState<MeshDiagnosticsSnapshot>(
+    getMeshDiagnosticsSnapshot(),
+  );
+  const [nodes, setNodes] = useState<MeshNode[]>(MeshTopology.getTopology());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSnapshot(getMeshDiagnosticsSnapshot());
+      setNodes(MeshTopology.getTopology());
+    }, 1000);
+
+    const unsubscribe = MeshTopology.subscribe(() => {
+      setNodes(MeshTopology.getTopology());
+    });
+
+    return () => {
+      clearInterval(timer);
+      unsubscribe();
+    };
+  }, []);
+
+  function handleReset() {
+    resetMeshDiagnostics();
+    setSnapshot(getMeshDiagnosticsSnapshot());
+  }
+
+  const lastPacket = snapshot.lastPacket;
+
+  return (
+    <SafeAreaView style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <Text style={styles.title}>Mesh Diagnostics</Text>
+        <Text style={styles.subtitle}>Phase 5.4 transport cockpit</Text>
+
+        <Button label="Back" onPress={onBack} />
+
+        <View style={styles.spacer} />
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Live Mesh Topology</Text>
+
+          <StatRow label="Visible nodes" value={nodes.length} />
+
+          {nodes.length === 0 ? (
+            <Text style={styles.empty}>
+              No mesh nodes visible yet. Start BLE broadcast on another phone, then start scanning.
+            </Text>
+          ) : (
+            nodes.map(node => (
+              <View key={node.id} style={styles.nodeCard}>
+                <View style={styles.nodeHeader}>
+                  <Text style={styles.nodeName}>{node.name || '🙂'} {node.id}</Text>
+                  <Text style={styles.nodeBadge}>Hop {node.hops}</Text>
+                </View>
+
+                <StatRow label="RSSI" value={`${node.rssi} dBm`} />
+                <StatRow label="Last seen" value={formatAge(node.lastSeen)} />
+                <StatRow label="Via" value={node.via || 'direct'} />
+                <StatRow label="Connected" value={node.connected ? 'yes' : 'no'} />
+              </View>
+            ))
+          )}
+        </View>
+
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Packets</Text>
+
+          <StatRow label="Created" value={snapshot.packetsCreated} />
+          <StatRow label="Received" value={snapshot.packetsReceived} />
+          <StatRow label="Relayed" value={snapshot.packetsRelayed} />
+          <StatRow label="Dropped" value={snapshot.packetsDropped} />
+          <StatRow label="Duplicates" value={snapshot.duplicatesDropped} />
+          <StatRow label="TTL expired" value={snapshot.ttlExpired} />
+          <StatRow label="Invalid" value={snapshot.invalidPackets} />
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Relay Queue</Text>
+
+          <StatRow label="Current queue" value={snapshot.currentQueueSize} />
+          <StatRow label="Queue peak" value={snapshot.queuePeak} />
+          <StatRow label="Relay failures" value={snapshot.relayFailures} />
+          <StatRow
+            label="Last relay delay"
+            value={
+              snapshot.lastRelayDelayMs === null
+                ? 'n/a'
+                : `${snapshot.lastRelayDelayMs}ms`
+            }
+          />
+          <StatRow
+            label="Average delay"
+            value={
+              snapshot.averageRelayDelayMs === null
+                ? 'n/a'
+                : `${snapshot.averageRelayDelayMs}ms`
+            }
+          />
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Last Packet</Text>
+
+          {lastPacket ? (
+            <>
+              <StatRow label="Event" value={lastPacket.event} />
+              <StatRow label="Reason" value={lastPacket.reason || 'n/a'} />
+              <StatRow label="ID" value={lastPacket.id} />
+              <StatRow label="Origin" value={lastPacket.origin} />
+              <StatRow label="TTL" value={lastPacket.ttl} />
+              <StatRow label="Hop count" value={lastPacket.hopCount} />
+              <StatRow label="Age" value={formatAge(lastPacket.timestamp)} />
+            </>
+          ) : (
+            <Text style={styles.empty}>No packets recorded yet.</Text>
+          )}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Controls</Text>
+          <Button label="Reset Diagnostics" onPress={handleReset} />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#050505',
+  },
+  scroll: {
+    padding: 20,
+  },
+  title: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  subtitle: {
+    color: '#aaa',
+    fontSize: 14,
+    marginBottom: 20,
+  },
+  spacer: {
+    height: 16,
+  },
+  card: {
+    backgroundColor: '#151515',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#262626',
+  },
+  cardTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#242424',
+  },
+  statLabel: {
+    color: '#aaa',
+    fontSize: 14,
+  },
+  statValue: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    flexShrink: 1,
+    textAlign: 'right',
+  },
+  nodeCard: {
+    backgroundColor: '#0b0b0b',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#2f2f2f',
+  },
+  nodeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 8,
+  },
+  nodeName: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+    flexShrink: 1,
+  },
+  nodeBadge: {
+    color: '#050505',
+    backgroundColor: '#fff',
+    fontSize: 12,
+    fontWeight: '900',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  empty: {
+    color: '#aaa',
+    fontSize: 14,
+  },
+});

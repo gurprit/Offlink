@@ -33,12 +33,10 @@ export function HomeScreen({
   bleStatus,
   onShowSightings,
   onShowMap,
-  onShowMeshDiagnostics,
 }: {
   onShowNearby?: () => void;
   onShowSightings?: () => void;
   onShowMap?: () => void;
-  onShowMeshDiagnostics?: () => void;
   onNearbyUserFound?: (user: import('../models/types').NearbyOfflinkUser) => void;
   onFriendsChanged?: (friends: OfflinkFriend[]) => void;
   bleStatus?: string;
@@ -399,13 +397,6 @@ export function HomeScreen({
             <Button
               label="Start Live Offlink Scan"
               onPress={handleStartLiveOfflinkScan}
-            />
-
-            <View style={{height: 12}} />
-
-            <Button
-              label="Mesh Diagnostics"
-              onPress={() => onShowMeshDiagnostics?.()}
             />
           </Card>
         ) : null}

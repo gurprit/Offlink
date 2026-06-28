@@ -4,6 +4,7 @@ import BLEAdvertiser from 'react-native-ble-advertiser';
 import {OfflinkProfile, NearbyOfflinkUser} from '../models/types';
 import {OfflinkLocation} from './LocationService';
 import {ALL_EMOJIS} from '../data/emojis';
+import MeshTopology from './MeshTopology';
 
 const BLE_APP_PREFIX = 'OL';
 const OFFLINK_COMPANY_ID = 0x1234;
@@ -207,13 +208,24 @@ export function startOfflinkScan(
       return;
     }
 
+    const rssi = device?.rssi ?? -100;
+
+    MeshTopology.updateNode(
+      user.userId,
+      user.emoji,
+      rssi,
+      1,
+      null,
+    );
+
     const userWithSignal = {
       ...user,
       deviceId: device?.id,
-      rssi: device?.rssi ?? undefined,
+      rssi,
     };
 
     console.log('OFFLINK_USER_FOUND', JSON.stringify(userWithSignal));
+    console.log('OFFLINK_MESH_TOPOLOGY', JSON.stringify(MeshTopology.getTopology()));
     onUserFound(userWithSignal);
   });
 

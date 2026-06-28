@@ -1,0 +1,128 @@
+import {MeshNode} from '../models/MeshNode';
+
+const NODE_TIMEOUT_MS = 30_000;
+const CLEANUP_INTERVAL_MS = 5_000;
+
+function calculateQuality(rssi: number): number {
+  if (rssi >= -50) {
+    return 100;
+  }
+
+  if (rssi <= -95) {
+    return 5;
+  }
+
+  return Math.round(((rssi + 95) / 45) * 95 + 5);
+}
+
+class MeshTopologyStore {
+  private nodes = new Map<string, MeshNode>();
+  private listeners = new Set<() => void>();
+
+  updateNode(
+    id: string,
+    name: string,
+    rssi: number,
+    hops = 1,
+    via: string | null = null,
+  ) {
+    const now = Date.now();
+    const existing = this.nodes.get(id);
+
+    this.nodes.set(id, {
+      ...(existing ?? {}),
+      id,
+      name,
+      rssi,
+      quality: calculateQuality(rssi),
+      firstSeen: existing?.firstSeen ?? now,
+      lastSeen: now,
+      lastUpdated: now,
+      hops,
+      via,
+      discoveredVia: via ? `via ${via}` : 'direct',
+      connected: true,
+    });
+
+    this.notify();
+  }
+
+
+  updateRemoteNode(
+    id: string,
+    name: string,
+    quality: number,
+    hops: number,
+    via: string,
+  ) {
+    const now = Date.now();
+    const existing = this.nodes.get(id);
+    const safeQuality = Math.max(0, Math.min(100, Math.round(quality)));
+    const estimatedRssi = Math.round(-95 + (safeQuality / 100) * 45);
+
+    if (existing && existing.hops <= hops) {
+      return;
+    }
+
+    this.nodes.set(id, {
+      ...(existing ?? {}),
+      id,
+      name,
+      rssi: existing?.rssi ?? estimatedRssi,
+      quality: safeQuality,
+      firstSeen: existing?.firstSeen ?? now,
+      lastSeen: now,
+      lastUpdated: now,
+      hops,
+      via,
+      discoveredVia: `via ${via}`,
+      connected: false,
+    });
+
+    this.notify();
+  }
+
+  removeExpiredNodes() {
+    const now = Date.now();
+
+    for (const [id, node] of this.nodes) {
+      if (now - node.lastSeen > NODE_TIMEOUT_MS) {
+        this.nodes.delete(id);
+        this.notify();
+      }
+    }
+  }
+
+  getTopology(): MeshNode[] {
+    return [...this.nodes.values()].sort((a, b) => b.lastSeen - a.lastSeen);
+  }
+
+  getNearestNodes(): MeshNode[] {
+    return [...this.nodes.values()].sort((a, b) => b.rssi - a.rssi);
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  clear() {
+    this.nodes.clear();
+    this.notify();
+  }
+
+  private notify() {
+    this.listeners.forEach(listener => listener());
+  }
+}
+
+const meshTopology = new MeshTopologyStore();
+
+setInterval(() => {
+  meshTopology.removeExpiredNodes();
+}, CLEANUP_INTERVAL_MS);
+
+export default meshTopology;

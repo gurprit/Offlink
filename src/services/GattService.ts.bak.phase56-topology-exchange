@@ -1,8 +1,6 @@
 import {NativeModules} from 'react-native';
 import {BleManager, Device} from 'react-native-ble-plx';
 import {parseBleManufacturerData} from './BleService';
-import MeshTopology from './MeshTopology';
-import {createMeshTopologySummary, decodeMeshTopologySummary, encodeMeshTopologySummary} from './MeshTopologyProtocol';
 
 const SERVICE_UUID = '0000feed-0000-1000-8000-00805f9b34fb';
 const MESH_CHARACTERISTIC_UUID = '0000beef-0000-1000-8000-00805f9b34fb';
@@ -110,45 +108,4 @@ export async function readGattPayloadFromDevice(deviceId: string): Promise<strin
   } finally {
     await gattClient.cancelDeviceConnection(device.id).catch(() => {});
   }
-}
-
-
-export async function readTopologyFromNearest(): Promise<string> {
-  const payload = await readGattPayloadFromNearest();
-  const summary = decodeMeshTopologySummary(payload);
-
-  if (!summary) {
-    console.log('OFFLINK_TOPOLOGY_READ_IGNORED', payload);
-    return payload;
-  }
-
-  console.log('OFFLINK_TOPOLOGY_READ', JSON.stringify(summary));
-
-  for (const neighbour of summary.neighbours) {
-    if (neighbour.id === summary.nodeId) {
-      continue;
-    }
-
-    MeshTopology.updateRemoteNode(
-      neighbour.id,
-      'remote',
-      neighbour.quality,
-      neighbour.hops + 1,
-      summary.nodeId,
-    );
-  }
-
-  return payload;
-}
-
-
-export async function publishTopologyToGatt(selfId: string): Promise<string> {
-  const summary = createMeshTopologySummary(selfId, MeshTopology.getTopology());
-  const encoded = encodeMeshTopologySummary(summary);
-
-  await setGattPayload(encoded);
-
-  console.log('OFFLINK_TOPOLOGY_PUBLISHED', encoded);
-
-  return encoded;
 }

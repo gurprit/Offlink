@@ -5,7 +5,6 @@ import {HomeScreen} from './src/screens/HomeScreen';
 import {NearbyScreen} from './src/screens/NearbyScreen';
 import {SightingsScreen} from './src/screens/SightingsScreen';
 import {MapScreen} from './src/screens/MapScreen';
-import {MeshDiagnosticsScreen} from './src/screens/MeshDiagnosticsScreen';
 import {NearbyOfflinkUser, OfflinkFriend, OfflinkSighting} from './src/models/types';
 import {loadFriends, loadProfile, loadSightings, saveFriends, saveSightings} from './src/services/StorageService';
 import {
@@ -20,13 +19,11 @@ import {createMeshPayload, mergeMeshSightings, parseMeshPayload, stringifyMeshEn
 import {evaluateMeshPacket, relayPacket} from './src/services/MeshEngine';
 import {enqueueRelayPacket, getRelayQueueSize} from './src/services/MeshRelayQueue';
 import {dispatchNextMeshPacket} from './src/services/MeshDispatcher';
-import {applyTopologyPayload, publishLocalTopology} from './src/services/MeshTopologyExchangeService';
 
 export default function App() {
   const [showNearby, setShowNearby] = useState(false);
   const [showSightings, setShowSightings] = useState(false);
   const [showMap, setShowMap] = useState(false);
-  const [showMeshDiagnostics, setShowMeshDiagnostics] = useState(false);
   const [nearbyUsers, setNearbyUsers] = useState<NearbyOfflinkUser[]>([]);
   const [friends, setFriends] = useState<OfflinkFriend[]>([]);
   const [sightings, setSightings] = useState<OfflinkSighting[]>([]);
@@ -99,10 +96,6 @@ export default function App() {
           createMeshPayload(savedProfile.userId, sightingsRef.current),
         );
 
-        publishLocalTopology(savedProfile.userId).catch(error =>
-          console.log('OFFLINK_TOPOLOGY_INITIAL_PUBLISH_ERROR', String(error)),
-        );
-
         stopScan = startOfflinkScan(user => {
           handleNearbyUserFound(user);
         });
@@ -144,8 +137,8 @@ export default function App() {
       return;
     }
 
-    publishLocalTopology(userId).catch(error =>
-      console.log('OFFLINK_TOPOLOGY_PUBLISH_ERROR', String(error)),
+    setGattPayload(createMeshPayload(userId, nextSightings)).catch(error =>
+      console.log('OFFLINK_GATT_PAYLOAD_ERROR', error),
     );
   }
 
@@ -169,12 +162,6 @@ export default function App() {
 
     try {
       const rawPayload = await readGattPayloadFromDevice(user.deviceId);
-
-      if (applyTopologyPayload(rawPayload)) {
-        console.log('OFFLINK_TOPOLOGY_SYNC_APPLIED', user.userId);
-        return;
-      }
-
       const envelope = parseMeshPayload(rawPayload);
 
       if (!envelope) {
@@ -315,14 +302,6 @@ export default function App() {
     });
   }
 
-  if (showMeshDiagnostics) {
-    return (
-      <MeshDiagnosticsScreen
-        onBack={() => setShowMeshDiagnostics(false)}
-      />
-    );
-  }
-
   if (showMap) {
     return (
       <MapScreen
@@ -360,7 +339,6 @@ export default function App() {
       onShowNearby={() => setShowNearby(true)}
       onShowSightings={() => setShowSightings(true)}
       onShowMap={() => setShowMap(true)}
-      onShowMeshDiagnostics={() => setShowMeshDiagnostics(true)}
       onNearbyUserFound={handleNearbyUserFound}
       onFriendsChanged={setFriends}
       bleStatus={bleStatus}

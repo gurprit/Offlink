@@ -1,0 +1,22 @@
+export interface MeshNode {
+  /** Offlink user/device ID */
+  id: string;
+
+  /** Friendly name */
+  name: string;
+
+  /** Latest RSSI */
+  rssi: number;
+
+  /** Last time we saw this node */
+  lastSeen: number;
+
+  /** Number of hops from us */
+  hops: number;
+
+  /** Which neighbour introduced this node */
+  via: string | null;
+
+  /** Whether the device is directly reachable */
+  connected: boolean;
+}
