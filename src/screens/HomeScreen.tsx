@@ -25,6 +25,7 @@ import {
   saveProfile as persistProfile,
 } from '../services/StorageService';
 import {ALL_EMOJIS} from '../data/emojis';
+import {ensureMeshId} from '../services/MeshIdentityService';
 
 export function HomeScreen({
   onShowNearby,
@@ -102,6 +103,7 @@ export function HomeScreen({
 
     const profile: OfflinkProfile = {
       userId: savedProfile?.userId || makeShortId(),
+      meshId: ensureMeshId(savedProfile?.meshId),
       emoji: selectedEmoji,
     };
 

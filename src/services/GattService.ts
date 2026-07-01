@@ -10,6 +10,28 @@ const MESH_CHARACTERISTIC_UUID = '0000beef-0000-1000-8000-00805f9b34fb';
 const {OfflinkGatt} = NativeModules;
 const gattClient = new BleManager();
 
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    promise
+      .then(value => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch(error => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
 function decodeBase64(value: string): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
   let output = '';
@@ -96,17 +118,42 @@ export async function readGattPayloadFromNearest(): Promise<string> {
 }
 
 export async function readGattPayloadFromDevice(deviceId: string): Promise<string> {
-  const device = await gattClient.connectToDevice(deviceId, {timeout: 8000});
+  console.log('OFFLINK_GATT_CONNECT_START', deviceId);
+
+  const device = await withTimeout(
+    gattClient.connectToDevice(deviceId, {timeout: 8000}),
+    9000,
+    'GATT connect',
+  );
 
   try {
-    await device.discoverAllServicesAndCharacteristics();
+    console.log('OFFLINK_GATT_DISCOVER_START', deviceId);
 
-    const characteristic = await device.readCharacteristicForService(
-      SERVICE_UUID,
-      MESH_CHARACTERISTIC_UUID,
+    await withTimeout(
+      device.discoverAllServicesAndCharacteristics(),
+      6000,
+      'GATT discover',
     );
 
-    return decodeBase64(characteristic.value || '');
+    console.log('OFFLINK_GATT_READ_START', deviceId);
+
+    const characteristic = await withTimeout(
+      device.readCharacteristicForService(
+        SERVICE_UUID,
+        MESH_CHARACTERISTIC_UUID,
+      ),
+      6000,
+      'GATT read',
+    );
+
+    const decoded = decodeBase64(characteristic.value || '');
+
+    console.log(
+      'OFFLINK_GATT_READ_SUCCESS',
+      JSON.stringify({deviceId, length: decoded.length}),
+    );
+
+    return decoded;
   } finally {
     await gattClient.cancelDeviceConnection(device.id).catch(() => {});
   }

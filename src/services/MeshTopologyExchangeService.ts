@@ -12,13 +12,21 @@ import {
 let lastPublishAt = 0;
 let lastPublishedPayload = '';
 let publishPromise: Promise<string> | null = null;
+let localMeshId: string | null = null;
 const TOPOLOGY_PUBLISH_THROTTLE_MS = 5000;
 const lastSequenceByNode: Record<string, number> = {};
 
-export async function publishLocalTopology(selfId: string): Promise<string> {
+export function setLocalMeshId(meshId: string | null): void {
+  localMeshId = meshId;
+  MeshTopology.setSelfMeshId(meshId);
+}
+
+export async function publishLocalTopology(selfMeshId: string, force = false): Promise<string> {
   const now = Date.now();
+  setLocalMeshId(selfMeshId);
 
   if (
+    !force &&
     lastPublishedPayload &&
     now - lastPublishAt < TOPOLOGY_PUBLISH_THROTTLE_MS
   ) {
@@ -30,7 +38,7 @@ export async function publishLocalTopology(selfId: string): Promise<string> {
   }
 
   publishPromise = (async () => {
-    const summary = createMeshTopologySummary(selfId, MeshTopology.getTopology());
+    const summary = createMeshTopologySummary(selfMeshId, MeshTopology.getTopology());
     const encoded = encodeMeshTopologySummary(summary);
 
     await setGattPayload(encoded);
@@ -50,12 +58,28 @@ export async function publishLocalTopology(selfId: string): Promise<string> {
   }
 }
 
-
-export function applyTopologyPayload(payload: string): boolean {
+export function applyTopologyPayload(
+  payload: string,
+  ownMeshId: string | null = localMeshId,
+  ownUserId: string | null = null,
+  viaOverride: string | null = null,
+): boolean {
   const summary = decodeMeshTopologySummary(payload);
 
   if (!summary) {
     return false;
+  }
+
+  if (ownMeshId) {
+    setLocalMeshId(ownMeshId);
+  }
+
+  if (
+    (ownMeshId && summary.nodeId === ownMeshId) ||
+    (ownUserId && summary.nodeId === ownUserId)
+  ) {
+    console.log('OFFLINK_TOPOLOGY_SELF_REFLECTION_DROPPED', summary.nodeId);
+    return true;
   }
 
   const lastSequence = lastSequenceByNode[summary.nodeId] ?? 0;
@@ -78,7 +102,30 @@ export function applyTopologyPayload(payload: string): boolean {
   console.log('OFFLINK_TOPOLOGY_APPLY', JSON.stringify(summary));
 
   for (const neighbour of summary.neighbours) {
+    const via = viaOverride || summary.nodeId;
+
+    console.log(
+      'OFFLINK_TOPOLOGY_NEIGHBOUR_SEEN',
+      JSON.stringify({
+        neighbour,
+        via,
+        ownMeshId,
+        ownUserId,
+        summaryNodeId: summary.nodeId,
+      }),
+    );
+
     if (neighbour.id === summary.nodeId) {
+      console.log('OFFLINK_TOPOLOGY_NEIGHBOUR_SKIPPED_SAME_AS_SENDER', neighbour.id);
+      continue;
+    }
+
+    if (
+      (ownMeshId && neighbour.id === ownMeshId) ||
+      (ownUserId && neighbour.id === ownUserId) ||
+      (ownUserId && neighbour.userId === ownUserId)
+    ) {
+      console.log('OFFLINK_TOPOLOGY_NEIGHBOUR_SKIPPED_SELF', JSON.stringify(neighbour));
       continue;
     }
 
@@ -87,7 +134,13 @@ export function applyTopologyPayload(payload: string): boolean {
       'remote',
       neighbour.quality,
       neighbour.hops + 1,
-      summary.nodeId,
+      via,
+      neighbour.userId,
+    );
+
+    console.log(
+      'OFFLINK_TOPOLOGY_AFTER_REMOTE_UPDATE',
+      JSON.stringify(MeshTopology.getTopology()),
     );
   }
 

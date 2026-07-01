@@ -1,6 +1,9 @@
 export interface MeshNode {
-  /** Offlink user/device ID */
+  /** Permanent mesh routing identity */
   id: string;
+
+  /** Offlink friend/user identity advertised by this node */
+  userId?: string;
 
   /** Friendly display name or emoji */
   name: string;
@@ -23,7 +26,7 @@ export interface MeshNode {
   /** Number of hops from us */
   hops: number;
 
-  /** Which neighbour introduced this node */
+  /** Which mesh node introduced this node */
   via: string | null;
 
   /** Human-readable discovery source */
@@ -31,4 +34,10 @@ export interface MeshNode {
 
   /** Whether the device is directly reachable */
   connected: boolean;
+
+  /** Route score from 0-100 */
+  routeScore?: number;
+
+  /** Why this route was chosen */
+  routeReason?: string;
 }

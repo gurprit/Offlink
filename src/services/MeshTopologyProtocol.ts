@@ -4,12 +4,13 @@ let localSequence = 0;
 
 export interface MeshTopologySummaryNode {
   id: string;
+  userId?: string;
   hops: number;
   quality: number;
 }
 
 export interface MeshTopologySummary {
-  version: 1;
+  version: 2;
   nodeId: string;
   sequence: number;
   timestamp: number;
@@ -24,7 +25,7 @@ export function createMeshTopologySummary(
   localSequence++;
 
   return {
-    version: 1,
+    version: 2,
     nodeId,
     sequence: localSequence,
     timestamp: Date.now(),
@@ -34,6 +35,7 @@ export function createMeshTopologySummary(
       .slice(0, 12)
       .map(node => ({
         id: node.id,
+        userId: node.userId,
         hops: node.hops,
         quality: node.quality,
       })),
@@ -55,7 +57,7 @@ export function decodeMeshTopologySummary(
     const parsed = JSON.parse(value.slice('OLMESH|'.length));
 
     if (
-      parsed?.version !== 1 ||
+      typeof parsed?.version !== 'number' ||
       typeof parsed.nodeId !== 'string' ||
       typeof parsed.sequence !== 'number' ||
       typeof parsed.timestamp !== 'number' ||
@@ -66,7 +68,7 @@ export function decodeMeshTopologySummary(
     }
 
     return {
-      version: 1,
+      version: 2,
       nodeId: parsed.nodeId,
       sequence: parsed.sequence,
       timestamp: parsed.timestamp,
@@ -84,6 +86,7 @@ export function decodeMeshTopologySummary(
         .slice(0, 12)
         .map((node: MeshTopologySummaryNode) => ({
           id: node.id,
+          userId: typeof node.userId === 'string' ? node.userId : undefined,
           hops: Math.max(1, Math.min(8, Math.round(node.hops))),
           quality: Math.max(0, Math.min(100, Math.round(node.quality))),
         })),

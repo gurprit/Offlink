@@ -70,11 +70,9 @@ export function makeBlePayload(
   profile: OfflinkProfile,
   location?: OfflinkLocation | null,
 ): string {
-  return [
-    BLE_APP_PREFIX,
-    profile.userId,
-    encodeEmojiForBle(profile.emoji || '🙂'),
-  ].join('|');
+  const emojiCode = encodeEmojiForBle(profile.emoji || '🙂');
+
+  return `${BLE_APP_PREFIX}|${profile.userId}|${emojiCode}`;
 }
 
 export function parseBlePayload(input: string): NearbyOfflinkUser | null {
@@ -86,13 +84,15 @@ export function parseBlePayload(input: string): NearbyOfflinkUser | null {
 
   const [prefix, userId, emojiValue] = parts;
   const emoji = decodeEmojiFromBle(emojiValue);
+  const meshId = userId;
 
-  if (prefix !== BLE_APP_PREFIX || !userId || !emoji) {
+  if (prefix !== BLE_APP_PREFIX || !userId || !meshId || !emoji) {
     return null;
   }
 
   return {
     userId,
+    meshId,
     emoji,
     lastSeenAt: Date.now(),
   };
@@ -103,18 +103,33 @@ export async function requestBlePermissions(): Promise<boolean> {
     return false;
   }
 
-  const result = await PermissionsAndroid.requestMultiple([
-    PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-    PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-    PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE,
-  ]);
+  const androidVersion = Number(Platform.Version);
 
-  return (
-    result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN] === 'granted' &&
-    result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] === 'granted' &&
-    result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE] === 'granted'
-  );
+  if (androidVersion >= 31) {
+    const result = await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE,
+    ]);
+
+    return (
+      result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN] === 'granted' &&
+      result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] === 'granted' &&
+      result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE] === 'granted'
+    );
+  }
+
+  if (androidVersion >= 23) {
+    const result = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+    );
+
+    return result === PermissionsAndroid.RESULTS.GRANTED;
+  }
+
+  return true;
 }
+
 
 
 export async function startBleScanTest(): Promise<number> {
@@ -184,6 +199,7 @@ export async function startBleBroadcast(
 export async function startBleBroadcastTest(): Promise<void> {
   await startBleBroadcast({
     userId: 'TEST',
+    meshId: 'MESH-TEST-NODE',
     emoji: 'LION',
   });
 }
@@ -211,11 +227,12 @@ export function startOfflinkScan(
     const rssi = device?.rssi ?? -100;
 
     MeshTopology.updateNode(
-      user.userId,
+      user.meshId,
       user.emoji,
       rssi,
       1,
       null,
+      user.userId,
     );
 
     const userWithSignal = {

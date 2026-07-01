@@ -1,5 +1,6 @@
 export type OfflinkProfile = {
   userId: string;
+  meshId: string;
   emoji: string;
 };
 
@@ -11,6 +12,7 @@ export type OfflinkFriend = {
 
 export type NearbyOfflinkUser = {
   userId: string;
+  meshId: string;
   emoji: string;
   lastSeenAt: number;
   deviceId?: string;
@@ -19,7 +21,6 @@ export type NearbyOfflinkUser = {
   longitude?: number;
   accuracy?: number;
 };
-
 
 export type OfflinkSighting = {
   userId: string;
@@ -61,4 +62,3 @@ export type MeshDiagnosticsSnapshot = {
   lastPacket: MeshDiagnosticsLastPacket | null;
   updatedAt: number;
 };
-
