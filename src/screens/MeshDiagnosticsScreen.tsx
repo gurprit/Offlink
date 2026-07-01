@@ -14,6 +14,7 @@ import MeshTopology from '../services/MeshTopology';
 import {loadProfile} from '../services/StorageService';
 import {createMeshTopologySummary, encodeMeshTopologySummary} from '../services/MeshTopologyProtocol';
 import {publishLocalTopology, readAndApplyNearbyTopology} from '../services/MeshTopologyExchangeService';
+import {getAllNeighbourReliability, MeshNeighbourReliabilityStats} from '../services/MeshNeighbourReliability';
 import {
   getMeshDiagnosticsSnapshot,
   resetMeshDiagnostics,
@@ -31,6 +32,57 @@ function formatAge(timestamp?: number): string {
   }
 
   return `${Math.floor(ageMs / 1000)}s ago`;
+}
+
+function buildMeshTreeLines(selfId: string, nodes: MeshNode[]): string[] {
+  const directNodes = nodes
+    .filter(node => node.connected || !node.via)
+    .sort((a, b) => b.quality - a.quality);
+
+  const remoteNodes = nodes
+    .filter(node => !node.connected && !!node.via)
+    .sort((a, b) => a.hops - b.hops || b.quality - a.quality);
+
+  const lines = [`📱 You ${selfId}`];
+
+  if (directNodes.length === 0 && remoteNodes.length === 0) {
+    lines.push('└── No visible mesh nodes yet');
+    return lines;
+  }
+
+  directNodes.forEach((directNode, index) => {
+    const directBranch = index === directNodes.length - 1 && remoteNodes.length === 0 ? '└──' : '├──';
+
+    lines.push(
+      `${directBranch} ${directNode.name || '🙂'} ${directNode.id} · Direct · Q${directNode.quality}`,
+    );
+
+    const children = remoteNodes.filter(remoteNode => remoteNode.via === directNode.id);
+
+    children.forEach((child, childIndex) => {
+      const isLastChild = childIndex === children.length - 1;
+      const spacer = directBranch === '└──' ? '    ' : '│   ';
+      const childBranch = isLastChild ? '└──' : '├──';
+
+      lines.push(
+        `${spacer}${childBranch} ${child.name || 'remote'} ${child.id} · Hop ${child.hops} · Q${child.quality}`,
+      );
+    });
+  });
+
+  const orphanRemoteNodes = remoteNodes.filter(
+    remoteNode => !directNodes.some(directNode => directNode.id === remoteNode.via),
+  );
+
+  orphanRemoteNodes.forEach((remoteNode, index) => {
+    const branch = index === orphanRemoteNodes.length - 1 ? '└──' : '├──';
+
+    lines.push(
+      `${branch} ${remoteNode.name || 'remote'} ${remoteNode.id} · Hop ${remoteNode.hops} via ${remoteNode.via} · Q${remoteNode.quality}`,
+    );
+  });
+
+  return lines;
 }
 
 function StatRow({
@@ -54,6 +106,9 @@ export function MeshDiagnosticsScreen({onBack}: {onBack: () => void}) {
   );
   const [nodes, setNodes] = useState<MeshNode[]>(MeshTopology.getTopology());
   const [selfId, setSelfId] = useState<string>('UNKNOWN_SELF');
+  const [neighbourHealth, setNeighbourHealth] = useState<MeshNeighbourReliabilityStats[]>(
+    getAllNeighbourReliability(),
+  );
 
   useEffect(() => {
     loadProfile().then(profile => {
@@ -65,10 +120,12 @@ export function MeshDiagnosticsScreen({onBack}: {onBack: () => void}) {
     const timer = setInterval(() => {
       setSnapshot(getMeshDiagnosticsSnapshot());
       setNodes(MeshTopology.getTopology());
+      setNeighbourHealth(getAllNeighbourReliability());
     }, 1000);
 
     const unsubscribe = MeshTopology.subscribe(() => {
       setNodes(MeshTopology.getTopology());
+      setNeighbourHealth(getAllNeighbourReliability());
     });
 
     return () => {
@@ -121,6 +178,7 @@ export function MeshDiagnosticsScreen({onBack}: {onBack: () => void}) {
   }
 
   const lastPacket = snapshot.lastPacket;
+  const meshTreeLines = buildMeshTreeLines(selfId, nodes);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -131,6 +189,18 @@ export function MeshDiagnosticsScreen({onBack}: {onBack: () => void}) {
         <Button label="Back" onPress={onBack} />
 
         <View style={styles.spacer} />
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Mesh Tree</Text>
+
+          <View style={styles.treeBox}>
+            {meshTreeLines.map((line, index) => (
+              <Text key={`${line}-${index}`} style={styles.treeLine}>
+                {line}
+              </Text>
+            ))}
+          </View>
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Live Mesh Topology</Text>
@@ -165,6 +235,30 @@ export function MeshDiagnosticsScreen({onBack}: {onBack: () => void}) {
           )}
         </View>
 
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Neighbour Health</Text>
+
+          {neighbourHealth.length === 0 ? (
+            <Text style={styles.empty}>
+              No GATT reliability data yet. Let nearby sync run, then scores will appear here.
+            </Text>
+          ) : (
+            neighbourHealth.map(neighbour => (
+              <View key={neighbour.nodeId} style={styles.nodeCard}>
+                <View style={styles.nodeHeader}>
+                  <Text style={styles.nodeName}>{neighbour.nodeId}</Text>
+                  <Text style={styles.healthBadge}>Score {neighbour.score}</Text>
+                </View>
+
+                <StatRow label="GATT successes" value={neighbour.gattSuccesses} />
+                <StatRow label="GATT failures" value={neighbour.gattFailures} />
+                <StatRow label="Last success" value={formatAge(neighbour.lastSuccessAt ?? undefined)} />
+                <StatRow label="Last failure" value={formatAge(neighbour.lastFailureAt ?? undefined)} />
+              </View>
+            ))
+          )}
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Packets</Text>
@@ -296,6 +390,19 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     textAlign: 'right',
   },
+  treeBox: {
+    backgroundColor: '#0b0b0b',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#2f2f2f',
+  },
+  treeLine: {
+    color: '#fff',
+    fontSize: 13,
+    lineHeight: 21,
+    fontWeight: '700',
+  },
   nodeCard: {
     backgroundColor: '#0b0b0b',
     borderRadius: 14,
@@ -331,6 +438,16 @@ const styles = StyleSheet.create({
   },
   remoteBadge: {
     backgroundColor: '#999',
+  },
+  healthBadge: {
+    color: '#050505',
+    backgroundColor: '#fff',
+    fontSize: 12,
+    fontWeight: '900',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    overflow: 'hidden',
   },
 
 
