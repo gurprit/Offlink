@@ -15,14 +15,14 @@ import {
   stopBleBroadcastTest,
 } from './src/services/BleService';
 import {OfflinkLocation, watchCurrentLocation} from './src/services/LocationService';
-import {readGattPayloadFromDevice, setGattPayload, startGattServer} from './src/services/GattService';
-import {createMeshPayload, mergeMeshSightings, parseMeshPayload, stringifyMeshEnvelope} from './src/services/MeshSyncService';
-import {evaluateMeshPacket, relayPacket} from './src/services/MeshEngine';
-import {enqueueRelayPacket, getRelayQueueSize} from './src/services/MeshRelayQueue';
+import {setGattPayload, startGattServer} from './src/services/GattService';
+import {createMeshPayload, stringifyMeshEnvelope} from './src/services/MeshSyncService';
+import {getRelayQueueSize} from './src/services/MeshRelayQueue';
 import {dispatchNextMeshPacket} from './src/services/MeshDispatcher';
-import {recordGattFailure, recordGattSuccess} from './src/services/MeshNeighbourReliability';
-import {applyTopologyPayload, publishLocalTopology, setLocalMeshId} from './src/services/MeshTopologyExchangeService';
+
+import {publishLocalTopology, setLocalMeshId} from './src/services/MeshTopologyExchangeService';
 import {startMeshScheduler} from './src/services/MeshScheduler';
+import {processIncomingMeshPacket} from './src/services/MeshTransportService';
 
 export default function App() {
   const [showNearby, setShowNearby] = useState(false);
@@ -213,114 +213,30 @@ export default function App() {
     syncInFlightRef.current.add(deviceId);
 
     try {
-      console.log(
-        'OFFLINK_GATT_SYNC_START',
-        JSON.stringify({userId: user.userId, meshId: user.meshId, deviceId}),
-      );
-
-      const rawPayload = await readGattPayloadFromDevice(deviceId);
-
-      console.log(
-        'OFFLINK_GATT_SYNC_PAYLOAD',
-        JSON.stringify({
-          userId: user.userId,
-          length: rawPayload.length,
-          startsWith: rawPayload.slice(0, 24),
-        }),
-      );
-
-      if (
-        applyTopologyPayload(
-          rawPayload,
-          ownMeshIdRef.current,
-          ownUserIdRef.current,
-          user.userId,
-        )
-      ) {
-        console.log('OFFLINK_TOPOLOGY_SYNC_APPLIED', user.userId);
-
-        if (ownMeshIdRef.current) {
-          publishLocalTopology(ownMeshIdRef.current, true).catch(error =>
-            console.log('OFFLINK_TOPOLOGY_REPUBLISH_ERROR', String(error)),
-          );
-        }
-
-        lastGattSyncRef.current[deviceId] = Date.now();
-        recordGattSuccess(user.userId);
-        return;
-      }
-
-      const envelope = parseMeshPayload(rawPayload);
-
-      if (!envelope) {
-        console.log('OFFLINK_MESH_PACKET_DROP', 'parse-failed');
-        lastGattFailureRef.current[deviceId] = Date.now();
-        recordGattFailure(user.userId);
-        return;
-      }
-
-      const decision = evaluateMeshPacket(envelope, ownUserIdRef.current);
-
-      console.log(
-        'OFFLINK_MESH_PACKET_DECISION',
-        JSON.stringify({
-          packetId: envelope.id,
-          origin: envelope.origin,
-          ttl: envelope.ttl,
-          hopCount: envelope.hopCount,
-          reason: decision.reason,
-          accepted: decision.accepted,
-          shouldRelay: decision.shouldRelay,
-          sightings: envelope.payload.sightings.length,
-        }),
-      );
-
-      if (!decision.accepted) {
-        lastGattSyncRef.current[deviceId] = Date.now();
-        recordGattSuccess(user.userId);
-        return;
-      }
-
-      const payload = envelope.payload;
-
-      setSightings(currentSightings => {
-        const nextSightings = mergeMeshSightings({
-          currentSightings,
-          incomingSightings: payload.sightings,
-          ownUserId: ownUserIdRef.current,
-          seenBy: payload.senderId,
-        });
-
-        sightingsRef.current = nextSightings;
-        saveSightings(nextSightings).catch(() => {});
-
-        if (decision.shouldRelay) {
-          const relayedEnvelope = relayPacket(envelope);
-          const didQueue = enqueueRelayPacket(relayedEnvelope);
-
-          console.log(
-            'OFFLINK_MESH_PACKET_RELAY',
-            JSON.stringify({
-              packetId: relayedEnvelope.id,
-              origin: relayedEnvelope.origin,
-              ttl: relayedEnvelope.ttl,
-              hopCount: relayedEnvelope.hopCount,
-              queued: didQueue,
-              queueSize: getRelayQueueSize(),
-            }),
-          );
-        }
-
-        publishGattMesh(nextSightings);
-
-        lastGattSyncRef.current[deviceId] = Date.now();
-        recordGattSuccess(user.userId);
-
-        return nextSightings;
+      const result = await processIncomingMeshPacket({
+        user,
+        ownUserId: ownUserIdRef.current,
+        ownMeshId: ownMeshIdRef.current,
+        currentSightings: sightingsRef.current,
+        publishGattMesh,
+        saveSightings: nextSightings => {
+          sightingsRef.current = nextSightings;
+          saveSightings(nextSightings).catch(() => {});
+        },
       });
+
+      if (result.nextSightings) {
+        sightingsRef.current = result.nextSightings;
+        setSightings(result.nextSightings);
+      }
+
+      lastGattSyncRef.current[deviceId] = Date.now();
+
+      if (!result.handled) {
+        lastGattFailureRef.current[deviceId] = Date.now();
+      }
     } catch (error) {
       lastGattFailureRef.current[deviceId] = Date.now();
-      recordGattFailure(user.userId);
       console.log('OFFLINK_GATT_SYNC_ERROR', String(error));
     } finally {
       syncInFlightRef.current.delete(deviceId);
