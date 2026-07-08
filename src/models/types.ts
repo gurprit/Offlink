@@ -60,5 +60,9 @@ export type MeshDiagnosticsSnapshot = {
   lastRelayDelayMs: number | null;
   averageRelayDelayMs: number | null;
   lastPacket: MeshDiagnosticsLastPacket | null;
+  remoteRoutesApplied: number;
+  remoteRoutesSkippedSelf: number;
+  remoteRoutesSkippedDirect: number;
+  remoteRoutesSkippedWorse: number;
   updatedAt: number;
 };

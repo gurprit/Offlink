@@ -22,6 +22,7 @@ import {enqueueRelayPacket, getRelayQueueSize} from './src/services/MeshRelayQue
 import {dispatchNextMeshPacket} from './src/services/MeshDispatcher';
 import {recordGattFailure, recordGattSuccess} from './src/services/MeshNeighbourReliability';
 import {applyTopologyPayload, publishLocalTopology, setLocalMeshId} from './src/services/MeshTopologyExchangeService';
+import {startMeshScheduler} from './src/services/MeshScheduler';
 
 export default function App() {
   const [showNearby, setShowNearby] = useState(false);
@@ -43,8 +44,6 @@ export default function App() {
   const syncInFlightRef = useRef<Set<string>>(new Set());
   const lastGattSyncRef = useRef<Record<string, number>>({});
   const lastGattFailureRef = useRef<Record<string, number>>({});
-  const topologyCursorRef = useRef(0);
-  const topologyHeartbeatInFlightRef = useRef(false);
 
   useEffect(() => {
     let stopScan: (() => void) | null = null;
@@ -60,65 +59,6 @@ export default function App() {
         return nextUsers;
       });
     }, 5000);
-
-    const scanWatchdogTimer = setInterval(() => {
-      if (stopScan) {
-        stopScan();
-      }
-
-      stopScan = startOfflinkScan(user => {
-        handleNearbyUserFound(user);
-      });
-
-      console.log('OFFLINK_SCAN_WATCHDOG_RESTARTED');
-    }, 12000);
-
-    const topologySyncTimer = setInterval(() => {
-      if (topologyHeartbeatInFlightRef.current) {
-        console.log('OFFLINK_TOPOLOGY_HEARTBEAT_SKIPPED_IN_FLIGHT');
-        return;
-      }
-
-      topologyHeartbeatInFlightRef.current = true;
-
-      (async () => {
-        try {
-          const users = nearbyUsersRef.current.slice(0, 4);
-
-          console.log(
-            'OFFLINK_TOPOLOGY_HEARTBEAT',
-            JSON.stringify({
-              nearbyCount: users.length,
-              users: users.map(user => ({
-                userId: user.userId,
-                meshId: user.meshId,
-                deviceId: user.deviceId,
-                rssi: user.rssi,
-              })),
-            }),
-          );
-
-          if (users.length > 0) {
-            const index = topologyCursorRef.current % users.length;
-            topologyCursorRef.current += 1;
-
-            await syncMeshFromDevice(users[index]);
-          }
-
-          const meshId = ownMeshIdRef.current;
-          if (meshId) {
-            await publishLocalTopology(meshId).catch(error =>
-              console.log('OFFLINK_TOPOLOGY_HEARTBEAT_PUBLISH_ERROR', String(error)),
-            );
-          }
-        } finally {
-          topologyHeartbeatInFlightRef.current = false;
-        }
-      })().catch(error => {
-        topologyHeartbeatInFlightRef.current = false;
-        console.log('OFFLINK_TOPOLOGY_HEARTBEAT_ERROR', String(error));
-      });
-    }, 3000);
 
     async function initialise() {
       const savedFriends = await loadFriends();
@@ -173,15 +113,29 @@ export default function App() {
           createMeshPayload(savedProfile.userId, sightingsRef.current),
         );
 
-        publishLocalTopology(savedProfile.meshId).catch(error =>
+        await publishLocalTopology(savedProfile.meshId).catch(error =>
           console.log('OFFLINK_TOPOLOGY_INITIAL_PUBLISH_ERROR', String(error)),
         );
 
-        stopScan = startOfflinkScan(user => {
-          handleNearbyUserFound(user);
+        stopScan = startMeshScheduler({
+          getNearbyUsers: () => nearbyUsersRef.current,
+          startScan: () =>
+            startOfflinkScan(user => {
+              handleNearbyUserFound(user);
+            }),
+          syncUser: syncMeshFromDevice,
+          publishTopology: async () => {
+            const meshId = ownMeshIdRef.current;
+
+            if (!meshId) {
+              return;
+            }
+
+            await publishLocalTopology(meshId);
+          },
         });
 
-        setBleStatus('BLE active: broadcasting and scanning.');
+        setBleStatus('BLE active: scheduled scan and topology sync.');
       } catch (error) {
         setBleStatus(`BLE error: ${String(error)}`);
       }
@@ -201,8 +155,6 @@ export default function App() {
       }
 
       clearInterval(staleUserTimer);
-      clearInterval(scanWatchdogTimer);
-      clearInterval(topologySyncTimer);
       stopBleBroadcastTest().catch(() => {});
     };
   }, []);

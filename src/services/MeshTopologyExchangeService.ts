@@ -8,6 +8,10 @@ import {
   readGattPayloadFromNearest,
   setGattPayload,
 } from './GattService';
+import {
+  recordRemoteRouteSkippedSelf,
+  recordRemoteRouteSkippedWorse,
+} from './MeshDiagnosticsService';
 
 let lastPublishAt = 0;
 let lastPublishedPayload = '';
@@ -117,6 +121,7 @@ export function applyTopologyPayload(
 
     if (neighbour.id === summary.nodeId) {
       console.log('OFFLINK_TOPOLOGY_NEIGHBOUR_SKIPPED_SAME_AS_SENDER', neighbour.id);
+      recordRemoteRouteSkippedSelf();
       continue;
     }
 
@@ -126,6 +131,7 @@ export function applyTopologyPayload(
       (ownUserId && neighbour.userId === ownUserId)
     ) {
       console.log('OFFLINK_TOPOLOGY_NEIGHBOUR_SKIPPED_SELF', JSON.stringify(neighbour));
+      recordRemoteRouteSkippedSelf();
       continue;
     }
 

@@ -237,6 +237,15 @@ export function MeshDiagnosticsScreen({onBack}: {onBack: () => void}) {
 
 
         <View style={styles.card}>
+          <Text style={styles.cardTitle}>Routing Decisions</Text>
+
+          <StatRow label="Remote routes applied" value={snapshot.remoteRoutesApplied} />
+          <StatRow label="Skipped: self" value={snapshot.remoteRoutesSkippedSelf} />
+          <StatRow label="Skipped: already direct" value={snapshot.remoteRoutesSkippedDirect} />
+          <StatRow label="Skipped: weaker route" value={snapshot.remoteRoutesSkippedWorse} />
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.cardTitle}>Neighbour Health</Text>
 
           {neighbourHealth.length === 0 ? (

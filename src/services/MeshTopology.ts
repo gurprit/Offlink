@@ -1,6 +1,13 @@
 import {MeshNode} from '../models/MeshNode';
+import {
+  recordRemoteRouteApplied,
+  recordRemoteRouteSkippedDirect,
+  recordRemoteRouteSkippedSelf,
+  recordRemoteRouteSkippedWorse,
+} from './MeshDiagnosticsService';
 
-const NODE_TIMEOUT_MS = 30_000;
+const DIRECT_NODE_TIMEOUT_MS = 45_000;
+const REMOTE_NODE_TIMEOUT_MS = 120_000;
 const CLEANUP_INTERVAL_MS = 5_000;
 
 
@@ -92,6 +99,8 @@ class MeshTopologyStore {
     userId?: string,
   ) {
     if (this.isSelfRoute(id, via)) {
+      recordRemoteRouteSkippedSelf();
+      recordRemoteRouteSkippedDirect();
       return;
     }
 
@@ -136,6 +145,7 @@ class MeshTopologyStore {
     userId?: string,
   ) {
     if (this.isSelfRoute(id, via)) {
+      recordRemoteRouteSkippedSelf();
       return;
     }
 
@@ -185,8 +195,11 @@ class MeshTopologyStore {
         nextConnected: false,
       })
     ) {
+      recordRemoteRouteSkippedWorse();
       return;
     }
+
+    recordRemoteRouteApplied();
 
     this.nodes.set(id, {
       ...(existing ?? {}),
@@ -211,17 +224,30 @@ class MeshTopologyStore {
 
   removeExpiredNodes() {
     const now = Date.now();
-
     for (const [id, node] of this.nodes) {
-      if (now - node.lastSeen > NODE_TIMEOUT_MS) {
+      const ageMs = now - node.lastSeen;
+      const timeoutMs = node.connected ? DIRECT_NODE_TIMEOUT_MS : REMOTE_NODE_TIMEOUT_MS;
+
+      if (ageMs > timeoutMs) {
         this.nodes.delete(id);
-        this.notify();
       }
     }
+
+    this.notify();
   }
 
   getTopology(): MeshNode[] {
-    return [...this.nodes.values()].sort((a, b) => {
+    const now = Date.now();
+
+    return [...this.nodes.values()].map(node => ({
+      ...node,
+      routeScore: calculateRouteScore({
+        quality: node.quality,
+        hops: node.hops,
+        connected: node.connected,
+        ageMs: now - node.lastSeen,
+      }),
+    })).sort((a, b) => {
       const scoreDiff = (b.routeScore ?? b.quality) - (a.routeScore ?? a.quality);
 
       if (scoreDiff !== 0) {
@@ -261,22 +287,19 @@ class MeshTopologyStore {
       return;
     }
 
-    let didChange = false;
-
     for (const [id, node] of this.nodes) {
       if (id === this.selfMeshId || node.via === this.selfMeshId) {
         this.nodes.delete(id);
-        didChange = true;
       }
     }
 
-    if (didChange) {
-      this.notify();
-    }
+    this.notify();
   }
 
   private notify() {
-    this.listeners.forEach(listener => listener());
+    setTimeout(() => {
+      this.listeners.forEach(listener => listener());
+    }, 0);
   }
 }
 

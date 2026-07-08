@@ -17,6 +17,10 @@ const diagnostics: MeshDiagnosticsSnapshot = {
   lastRelayDelayMs: null,
   averageRelayDelayMs: null,
   lastPacket: null,
+  remoteRoutesApplied: 0,
+  remoteRoutesSkippedSelf: 0,
+  remoteRoutesSkippedDirect: 0,
+  remoteRoutesSkippedWorse: 0,
   updatedAt: Date.now(),
 };
 
@@ -156,5 +160,26 @@ export function recordMeshRelayDelay(delayMs: number) {
   relayDelayTotal += delayMs;
   relayDelayCount += 1;
   diagnostics.averageRelayDelayMs = Math.round(relayDelayTotal / relayDelayCount);
+  touch();
+}
+
+
+export function recordRemoteRouteApplied() {
+  diagnostics.remoteRoutesApplied = (diagnostics.remoteRoutesApplied ?? 0) + 1;
+  touch();
+}
+
+export function recordRemoteRouteSkippedSelf() {
+  diagnostics.remoteRoutesSkippedSelf = (diagnostics.remoteRoutesSkippedSelf ?? 0) + 1;
+  touch();
+}
+
+export function recordRemoteRouteSkippedDirect() {
+  diagnostics.remoteRoutesSkippedDirect = (diagnostics.remoteRoutesSkippedDirect ?? 0) + 1;
+  touch();
+}
+
+export function recordRemoteRouteSkippedWorse() {
+  diagnostics.remoteRoutesSkippedWorse = (diagnostics.remoteRoutesSkippedWorse ?? 0) + 1;
   touch();
 }
