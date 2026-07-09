@@ -1,4 +1,5 @@
 import {MeshNode} from '../models/MeshNode';
+import {extractTopologyPayload} from './MeshPayloadBundleService';
 
 let localSequence = 0;
 
@@ -49,12 +50,14 @@ export function encodeMeshTopologySummary(summary: MeshTopologySummary): string 
 export function decodeMeshTopologySummary(
   value: string | null | undefined,
 ): MeshTopologySummary | null {
-  if (!value?.startsWith('OLMESH|')) {
+  const topologyPayload = extractTopologyPayload(value);
+
+  if (!topologyPayload?.startsWith('OLMESH|')) {
     return null;
   }
 
   try {
-    const parsed = JSON.parse(value.slice('OLMESH|'.length));
+    const parsed = JSON.parse(topologyPayload.slice('OLMESH|'.length));
 
     if (
       typeof parsed?.version !== 'number' ||

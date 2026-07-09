@@ -12,6 +12,7 @@ import {
   recordRemoteRouteSkippedSelf,
   recordRemoteRouteSkippedWorse,
 } from './MeshDiagnosticsService';
+import {encodeMeshPayloadBundle} from './MeshPayloadBundleService';
 
 let lastPublishAt = 0;
 let lastPublishedPayload = '';
@@ -43,7 +44,12 @@ export async function publishLocalTopology(selfMeshId: string, force = false): P
 
   publishPromise = (async () => {
     const summary = createMeshTopologySummary(selfMeshId, MeshTopology.getTopology());
-    const encoded = encodeMeshTopologySummary(summary);
+    const topology = encodeMeshTopologySummary(summary);
+    const encoded = encodeMeshPayloadBundle({
+      version: 1,
+      topology,
+      mesh: null,
+    });
 
     await setGattPayload(encoded);
 

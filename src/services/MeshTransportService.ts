@@ -8,6 +8,7 @@ import {evaluateMeshPacket, relayPacket} from './MeshEngine';
 import {enqueueRelayPacket, getRelayQueueSize} from './MeshRelayQueue';
 import {recordGattFailure, recordGattSuccess} from './MeshNeighbourReliability';
 import {applyTopologyPayload, publishLocalTopology} from './MeshTopologyExchangeService';
+import {extractMeshPayload} from './MeshPayloadBundleService';
 
 export type ProcessIncomingMeshPacketArgs = {
   user: NearbyOfflinkUser;
@@ -84,7 +85,8 @@ export async function processIncomingMeshPacket({
     };
   }
 
-  const envelope = parseMeshPayload(rawPayload);
+  const meshPayload = extractMeshPayload(rawPayload);
+  const envelope = meshPayload ? parseMeshPayload(meshPayload) : null;
 
   if (!envelope) {
     console.log('OFFLINK_MESH_PACKET_DROP', 'parse-failed');
