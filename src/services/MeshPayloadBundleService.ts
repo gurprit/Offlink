@@ -1,10 +1,29 @@
 export const OFFLINK_BUNDLE_PREFIX = 'OLBUNDLE|';
 
+let currentTopologyPayload: string | null = null;
+let currentMeshPayload: string | null = null;
+
 export type MeshPayloadBundle = {
   version: 1;
   topology?: string | null;
   mesh?: string | null;
 };
+
+export function setCurrentTopologyPayload(payload: string | null): void {
+  currentTopologyPayload = payload;
+}
+
+export function setCurrentMeshPayload(payload: string | null): void {
+  currentMeshPayload = payload;
+}
+
+export function createCurrentMeshPayloadBundle(): string {
+  return encodeMeshPayloadBundle({
+    version: 1,
+    topology: currentTopologyPayload,
+    mesh: currentMeshPayload,
+  });
+}
 
 export function encodeMeshPayloadBundle(bundle: MeshPayloadBundle): string {
   return `${OFFLINK_BUNDLE_PREFIX}${JSON.stringify(bundle)}`;
@@ -26,10 +45,8 @@ export function decodeMeshPayloadBundle(
 
     return {
       version: 1,
-      topology:
-        typeof parsed.topology === 'string' ? parsed.topology : null,
-      mesh:
-        typeof parsed.mesh === 'string' ? parsed.mesh : null,
+      topology: typeof parsed.topology === 'string' ? parsed.topology : null,
+      mesh: typeof parsed.mesh === 'string' ? parsed.mesh : null,
     };
   } catch {
     return null;

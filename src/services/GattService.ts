@@ -5,7 +5,19 @@ import MeshTopology from './MeshTopology';
 import {createMeshTopologySummary, decodeMeshTopologySummary, encodeMeshTopologySummary} from './MeshTopologyProtocol';
 
 const SERVICE_UUID = '0000feed-0000-1000-8000-00805f9b34fb';
-const MESH_CHARACTERISTIC_UUID = '0000beef-0000-1000-8000-00805f9b34fb';
+const TOPOLOGY_CHARACTERISTIC_UUID =
+  '0000beef-0000-1000-8000-00805f9b34fb';
+
+const TRANSPORT_META_CHARACTERISTIC_UUID =
+  '0000cafe-0000-1000-8000-00805f9b34fb';
+
+const TRANSPORT_CONTROL_CHARACTERISTIC_UUID =
+  '0000caf1-0000-1000-8000-00805f9b34fb';
+
+const TRANSPORT_CHUNK_CHARACTERISTIC_UUID =
+  '0000caf2-0000-1000-8000-00805f9b34fb';
+
+const MAX_TRANSPORT_CHUNKS = 32;
 
 const {OfflinkGatt} = NativeModules;
 const gattClient = new BleManager();
@@ -30,6 +42,41 @@ function withTimeout<T>(
         reject(error);
       });
   });
+}
+
+function encodeBase64(value: string): string {
+  const bytes = Array.from(value).map(character =>
+    character.charCodeAt(0),
+  );
+
+  const chars =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+  let output = '';
+
+  for (let index = 0; index < bytes.length; index += 3) {
+    const first = bytes[index];
+    const second = bytes[index + 1];
+    const third = bytes[index + 2];
+
+    const triplet =
+      (first << 16) |
+      ((second ?? 0) << 8) |
+      (third ?? 0);
+
+    output += chars[(triplet >> 18) & 63];
+    output += chars[(triplet >> 12) & 63];
+    output +=
+      second === undefined
+        ? '='
+        : chars[(triplet >> 6) & 63];
+    output +=
+      third === undefined
+        ? '='
+        : chars[triplet & 63];
+  }
+
+  return output;
 }
 
 function decodeBase64(value: string): string {
@@ -67,6 +114,12 @@ export async function stopGattServer(): Promise<void> {
 
 export async function setGattPayload(payload: string): Promise<void> {
   await OfflinkGatt.setPayload(payload);
+}
+
+export async function setGattTransportPayload(
+  payload: string,
+): Promise<void> {
+  await OfflinkGatt.setTransportPayload(payload);
 }
 
 
@@ -140,7 +193,7 @@ export async function readGattPayloadFromDevice(deviceId: string): Promise<strin
     const characteristic = await withTimeout(
       device.readCharacteristicForService(
         SERVICE_UUID,
-        MESH_CHARACTERISTIC_UUID,
+        TOPOLOGY_CHARACTERISTIC_UUID,
       ),
       6000,
       'GATT read',
@@ -159,6 +212,157 @@ export async function readGattPayloadFromDevice(deviceId: string): Promise<strin
   }
 }
 
+
+
+export type OfflinkGattPayloads = {
+  topology: string;
+  transport: string;
+};
+
+export async function readGattPayloadsFromDevice(
+  deviceId: string,
+): Promise<OfflinkGattPayloads> {
+  console.log('OFFLINK_GATT_CONNECT_START', deviceId);
+
+  const device = await withTimeout(
+    gattClient.connectToDevice(deviceId, {timeout: 8000}),
+    9000,
+    'GATT connect',
+  );
+
+  try {
+    console.log('OFFLINK_GATT_DISCOVER_START', deviceId);
+
+    await withTimeout(
+      device.discoverAllServicesAndCharacteristics(),
+      6000,
+      'GATT discover',
+    );
+
+    const topologyCharacteristic = await withTimeout(
+      device.readCharacteristicForService(
+        SERVICE_UUID,
+        TOPOLOGY_CHARACTERISTIC_UUID,
+      ),
+      6000,
+      'GATT topology read',
+    );
+
+    let transport = '';
+
+    try {
+      const metadataCharacteristic = await withTimeout(
+        device.readCharacteristicForService(
+          SERVICE_UUID,
+          TRANSPORT_META_CHARACTERISTIC_UUID,
+        ),
+        6000,
+        'GATT transport metadata read',
+      );
+
+      const metadata = decodeBase64(
+        metadataCharacteristic.value || '',
+      );
+
+      const metadataParts = metadata.split('|');
+      const chunkCount = Number(metadataParts[2] || 0);
+      const encodedLength = Number(metadataParts[3] || 0);
+
+      if (
+        metadataParts[0] !== 'OLTX' ||
+        metadataParts[1] !== '1' ||
+        !Number.isInteger(chunkCount) ||
+        chunkCount < 0 ||
+        chunkCount > MAX_TRANSPORT_CHUNKS ||
+        !Number.isInteger(encodedLength) ||
+        encodedLength < 0
+      ) {
+        throw new Error(
+          `Invalid transport metadata: ${metadata}`,
+        );
+      }
+
+      const chunks: string[] = [];
+
+      for (
+        let chunkIndex = 0;
+        chunkIndex < chunkCount;
+        chunkIndex += 1
+      ) {
+        await withTimeout(
+          device.writeCharacteristicWithResponseForService(
+            SERVICE_UUID,
+            TRANSPORT_CONTROL_CHARACTERISTIC_UUID,
+            encodeBase64(String(chunkIndex)),
+          ),
+          6000,
+          `GATT transport chunk ${chunkIndex} select`,
+        );
+
+        const chunkCharacteristic = await withTimeout(
+          device.readCharacteristicForService(
+            SERVICE_UUID,
+            TRANSPORT_CHUNK_CHARACTERISTIC_UUID,
+          ),
+          6000,
+          `GATT transport chunk ${chunkIndex} read`,
+        );
+
+        chunks.push(
+          decodeBase64(chunkCharacteristic.value || ''),
+        );
+      }
+
+      const encodedTransport = chunks.join('');
+
+      if (encodedTransport.length !== encodedLength) {
+        throw new Error(
+          `Transport length mismatch: expected ${encodedLength}, got ${encodedTransport.length}`,
+        );
+      }
+
+      transport = decodeBase64(encodedTransport);
+
+      console.log(
+        'OFFLINK_GATT_TRANSPORT_REASSEMBLED',
+        JSON.stringify({
+          deviceId,
+          chunkCount,
+          encodedLength,
+          decodedLength: transport.length,
+        }),
+      );
+    } catch (error) {
+      console.log(
+        'OFFLINK_GATT_TRANSPORT_READ_ERROR',
+        JSON.stringify({
+          deviceId,
+          error: String(error),
+        }),
+      );
+    }
+
+    const topology = decodeBase64(
+      topologyCharacteristic.value || '',
+    );
+
+    console.log(
+      'OFFLINK_GATT_DUAL_READ_SUCCESS',
+      JSON.stringify({
+        deviceId,
+        topologyLength: topology.length,
+        transportLength: transport.length,
+      }),
+    );
+
+    return {
+      topology,
+      transport,
+    };
+  } finally {
+    await gattClient.cancelDeviceConnection(device.id).catch(() => {});
+  }
+}
 
 export async function readTopologyFromNearest(): Promise<string> {
   const payload = await readGattPayloadFromNearest();

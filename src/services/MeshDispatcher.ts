@@ -1,4 +1,4 @@
-import {setGattPayload} from './GattService';
+import {setGattTransportPayload} from './GattService';
 import {getNextRelayPacket, getRelayQueueSize} from './MeshRelayQueue';
 import {stringifyMeshEnvelope} from './MeshSyncService';
 import {
@@ -60,7 +60,9 @@ async function runScheduledDispatch(reason: string): Promise<boolean> {
       }),
     );
 
-    await setGattPayload(stringifyMeshEnvelope(nextPacket));
+    await setGattTransportPayload(
+      stringifyMeshEnvelope(nextPacket),
+    );
     recordMeshPacketRelayed(nextPacket);
     return true;
   } finally {

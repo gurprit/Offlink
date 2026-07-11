@@ -15,7 +15,10 @@ import {
   stopBleBroadcastTest,
 } from './src/services/BleService';
 import {OfflinkLocation, watchCurrentLocation} from './src/services/LocationService';
-import {setGattPayload, startGattServer} from './src/services/GattService';
+import {
+  setGattTransportPayload,
+  startGattServer,
+} from './src/services/GattService';
 import {createMeshPayload, stringifyMeshEnvelope} from './src/services/MeshSyncService';
 import {getRelayQueueSize} from './src/services/MeshRelayQueue';
 import {dispatchNextMeshPacket} from './src/services/MeshDispatcher';
@@ -34,6 +37,15 @@ export default function App() {
   const [friends, setFriends] = useState<OfflinkFriend[]>([]);
   const [sightings, setSightings] = useState<OfflinkSighting[]>([]);
   const [bleStatus, setBleStatus] = useState('BLE starting...');
+  const [gattSyncStatus, setGattSyncStatus] = useState({
+    state: 'idle',
+    targetUserId: null as string | null,
+    targetDeviceId: null as string | null,
+    lastStartedAt: null as number | null,
+    lastSuccessAt: null as number | null,
+    lastFailureAt: null as number | null,
+    lastError: null as string | null,
+  });
   const [ownUserId, setOwnUserId] = useState<string | null>(null);
   const [ownMeshId, setOwnMeshId] = useState<string | null>(null);
   const [currentLocation, setCurrentLocation] = useState<OfflinkLocation | null>(null);
@@ -166,11 +178,18 @@ export default function App() {
   }, [friends, nearbyUsers]);
 
   function publishGattMesh(nextSightings: OfflinkSighting[]) {
+    const userId = ownUserIdRef.current;
     const meshId = ownMeshIdRef.current;
 
-    if (!meshId) {
+    if (!userId || !meshId) {
       return;
     }
+
+    setGattTransportPayload(
+      createMeshPayload(userId, nextSightings),
+    ).catch(error =>
+      console.log('OFFLINK_MESH_TRANSPORT_PUBLISH_ERROR', String(error)),
+    );
 
     publishLocalTopology(meshId).catch(error =>
       console.log('OFFLINK_TOPOLOGY_PUBLISH_ERROR', String(error)),
@@ -178,19 +197,29 @@ export default function App() {
   }
 
   async function syncMeshFromDevice(user: NearbyOfflinkUser) {
-    if (!user.deviceId || !ownUserIdRef.current) {
+    const freshestUser =
+      nearbyUsersRef.current.find(
+        candidate => candidate.meshId === user.meshId,
+      ) ?? user;
+
+    if (!freshestUser.deviceId || !ownUserIdRef.current) {
       console.log(
         'OFFLINK_GATT_SYNC_SKIPPED_MISSING_DATA',
         JSON.stringify({
-          userId: user.userId,
-          deviceId: user.deviceId,
+          userId: freshestUser.userId,
+          deviceId: freshestUser.deviceId,
           hasOwnUserId: Boolean(ownUserIdRef.current),
         }),
       );
       return;
     }
 
-    const deviceId = user.deviceId;
+    const syncUser = freshestUser;
+    const deviceId = freshestUser.deviceId;
+
+    if (!deviceId) {
+      return;
+    }
     const lastSyncAt = lastGattSyncRef.current[deviceId] || 0;
     const lastFailureAt = lastGattFailureRef.current[deviceId] || 0;
     const now = Date.now();
@@ -212,9 +241,18 @@ export default function App() {
 
     syncInFlightRef.current.add(deviceId);
 
+    setGattSyncStatus(current => ({
+      ...current,
+      state: 'syncing',
+      targetUserId: user.userId,
+      targetDeviceId: deviceId,
+      lastStartedAt: Date.now(),
+      lastError: null,
+    }));
+
     try {
       const result = await processIncomingMeshPacket({
-        user,
+        user: syncUser,
         ownUserId: ownUserIdRef.current,
         ownMeshId: ownMeshIdRef.current,
         currentSightings: sightingsRef.current,
@@ -233,11 +271,37 @@ export default function App() {
       lastGattSyncRef.current[deviceId] = Date.now();
 
       if (!result.handled) {
-        lastGattFailureRef.current[deviceId] = Date.now();
+        const failureAt = Date.now();
+        lastGattFailureRef.current[deviceId] = failureAt;
+
+        setGattSyncStatus(current => ({
+          ...current,
+          state: 'failed',
+          lastFailureAt: failureAt,
+          lastError: 'Payload was not handled.',
+        }));
+      } else {
+        setGattSyncStatus(current => ({
+          ...current,
+          state: 'success',
+          lastSuccessAt: Date.now(),
+          lastError: null,
+        }));
       }
     } catch (error) {
-      lastGattFailureRef.current[deviceId] = Date.now();
-      console.log('OFFLINK_GATT_SYNC_ERROR', String(error));
+      const failureAt = Date.now();
+      const message = String(error);
+
+      lastGattFailureRef.current[deviceId] = failureAt;
+
+      setGattSyncStatus(current => ({
+        ...current,
+        state: 'failed',
+        lastFailureAt: failureAt,
+        lastError: message,
+      }));
+
+      console.log('OFFLINK_GATT_SYNC_ERROR', message);
     } finally {
       syncInFlightRef.current.delete(deviceId);
     }
@@ -319,6 +383,9 @@ export default function App() {
     return (
       <MeshDiagnosticsScreen
         onBack={() => setShowMeshDiagnostics(false)}
+        bleStatus={bleStatus}
+        nearbyUsers={nearbyUsers}
+        gattSyncStatus={gattSyncStatus}
       />
     );
   }

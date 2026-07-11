@@ -8,7 +8,10 @@ import {
   View,
 } from 'react-native';
 import {Button} from '../components/Button';
-import {MeshDiagnosticsSnapshot} from '../models/types';
+import {
+  MeshDiagnosticsSnapshot,
+  NearbyOfflinkUser,
+} from '../models/types';
 import {MeshNode} from '../models/MeshNode';
 import MeshTopology from '../services/MeshTopology';
 import {loadProfile} from '../services/StorageService';
@@ -100,7 +103,25 @@ function StatRow({
   );
 }
 
-export function MeshDiagnosticsScreen({onBack}: {onBack: () => void}) {
+export function MeshDiagnosticsScreen({
+  onBack,
+  bleStatus,
+  nearbyUsers,
+  gattSyncStatus,
+}: {
+  onBack: () => void;
+  bleStatus: string;
+  nearbyUsers: NearbyOfflinkUser[];
+  gattSyncStatus: {
+    state: string;
+    targetUserId: string | null;
+    targetDeviceId: string | null;
+    lastStartedAt: number | null;
+    lastSuccessAt: number | null;
+    lastFailureAt: number | null;
+    lastError: string | null;
+  };
+}) {
   const [snapshot, setSnapshot] = useState<MeshDiagnosticsSnapshot>(
     getMeshDiagnosticsSnapshot(),
   );
@@ -189,6 +210,94 @@ export function MeshDiagnosticsScreen({onBack}: {onBack: () => void}) {
         <Button label="Back" onPress={onBack} />
 
         <View style={styles.spacer} />
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Scanner State</Text>
+
+          <StatRow label="BLE status" value={bleStatus} />
+          <StatRow
+            label="Nearby users"
+            value={nearbyUsers.length}
+          />
+
+          {nearbyUsers.length === 0 ? (
+            <Text style={styles.empty}>
+              No BLE advertisements currently detected.
+            </Text>
+          ) : (
+            nearbyUsers.map(user => (
+              <View
+                key={`${user.userId}-${user.deviceId || 'unknown'}`}
+                style={styles.nodeCard}>
+                <View style={styles.nodeHeader}>
+                  <Text style={styles.nodeName}>
+                    {user.emoji} {user.userId}
+                  </Text>
+                  <Text style={styles.healthBadge}>
+                    {user.rssi ?? 'n/a'} dBm
+                  </Text>
+                </View>
+
+                <StatRow
+                  label="Mesh ID"
+                  value={user.meshId || 'missing'}
+                />
+                <StatRow
+                  label="Device ID"
+                  value={user.deviceId || 'missing'}
+                />
+                <StatRow
+                  label="Last advert"
+                  value={formatAge(user.lastSeenAt)}
+                />
+              </View>
+            ))
+          )}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>GATT Sync State</Text>
+
+          <StatRow label="State" value={gattSyncStatus.state} />
+          <StatRow
+            label="Target user"
+            value={gattSyncStatus.targetUserId || 'none'}
+          />
+          <StatRow
+            label="Target device"
+            value={gattSyncStatus.targetDeviceId || 'none'}
+          />
+          <StatRow
+            label="Last started"
+            value={
+              gattSyncStatus.lastStartedAt
+                ? formatAge(gattSyncStatus.lastStartedAt)
+                : 'never'
+            }
+          />
+          <StatRow
+            label="Last success"
+            value={
+              gattSyncStatus.lastSuccessAt
+                ? formatAge(gattSyncStatus.lastSuccessAt)
+                : 'never'
+            }
+          />
+          <StatRow
+            label="Last failure"
+            value={
+              gattSyncStatus.lastFailureAt
+                ? formatAge(gattSyncStatus.lastFailureAt)
+                : 'never'
+            }
+          />
+
+          {gattSyncStatus.lastError ? (
+            <Text style={styles.empty}>
+              {gattSyncStatus.lastError}
+            </Text>
+          ) : null}
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Mesh Tree</Text>

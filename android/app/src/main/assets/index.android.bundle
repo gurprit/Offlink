@@ -98849,18 +98849,30 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       _useState14 = (0, _slicedToArray2.default)(_useState13, 2),
       bleStatus = _useState14[0],
       setBleStatus = _useState14[1];
-    var _useState15 = (0, _react.useState)(null),
+    var _useState15 = (0, _react.useState)({
+        state: 'idle',
+        targetUserId: null,
+        targetDeviceId: null,
+        lastStartedAt: null,
+        lastSuccessAt: null,
+        lastFailureAt: null,
+        lastError: null
+      }),
       _useState16 = (0, _slicedToArray2.default)(_useState15, 2),
-      ownUserId = _useState16[0],
-      setOwnUserId = _useState16[1];
+      gattSyncStatus = _useState16[0],
+      setGattSyncStatus = _useState16[1];
     var _useState17 = (0, _react.useState)(null),
       _useState18 = (0, _slicedToArray2.default)(_useState17, 2),
-      ownMeshId = _useState18[0],
-      setOwnMeshId = _useState18[1];
+      ownUserId = _useState18[0],
+      setOwnUserId = _useState18[1];
     var _useState19 = (0, _react.useState)(null),
       _useState20 = (0, _slicedToArray2.default)(_useState19, 2),
-      currentLocation = _useState20[0],
-      setCurrentLocation = _useState20[1];
+      ownMeshId = _useState20[0],
+      setOwnMeshId = _useState20[1];
+    var _useState21 = (0, _react.useState)(null),
+      _useState22 = (0, _slicedToArray2.default)(_useState21, 2),
+      currentLocation = _useState22[0],
+      setCurrentLocation = _useState22[1];
     var currentLocationRef = (0, _react.useRef)(null);
     var ownUserIdRef = (0, _react.useRef)(null);
     var ownMeshIdRef = (0, _react.useRef)(null);
@@ -98980,10 +98992,14 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       });
     }, [friends, nearbyUsers]);
     function publishGattMesh(nextSightings) {
+      var userId = ownUserIdRef.current;
       var meshId = ownMeshIdRef.current;
-      if (!meshId) {
+      if (!userId || !meshId) {
         return;
       }
+      (0, _$$_REQUIRE(_dependencyMap[11], "./src/services/GattService").setGattTransportPayload)((0, _$$_REQUIRE(_dependencyMap[12], "./src/services/MeshSyncService").createMeshPayload)(userId, nextSightings)).catch(function (error) {
+        return console.log('OFFLINK_MESH_TRANSPORT_PUBLISH_ERROR', String(error));
+      });
       (0, _$$_REQUIRE(_dependencyMap[8], "./src/services/MeshTopologyExchangeService").publishLocalTopology)(meshId).catch(function (error) {
         return console.log('OFFLINK_TOPOLOGY_PUBLISH_ERROR', String(error));
       });
@@ -98993,15 +99009,23 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }
     function _syncMeshFromDevice() {
       _syncMeshFromDevice = (0, _asyncToGenerator2.default)(function* (user) {
-        if (!user.deviceId || !ownUserIdRef.current) {
+        var _nearbyUsersRef$curre;
+        var freshestUser = (_nearbyUsersRef$curre = nearbyUsersRef.current.find(function (candidate) {
+          return candidate.meshId === user.meshId;
+        })) != null ? _nearbyUsersRef$curre : user;
+        if (!freshestUser.deviceId || !ownUserIdRef.current) {
           console.log('OFFLINK_GATT_SYNC_SKIPPED_MISSING_DATA', JSON.stringify({
-            userId: user.userId,
-            deviceId: user.deviceId,
+            userId: freshestUser.userId,
+            deviceId: freshestUser.deviceId,
             hasOwnUserId: Boolean(ownUserIdRef.current)
           }));
           return;
         }
-        var deviceId = user.deviceId;
+        var syncUser = freshestUser;
+        var deviceId = freshestUser.deviceId;
+        if (!deviceId) {
+          return;
+        }
         var lastSyncAt = lastGattSyncRef.current[deviceId] || 0;
         var lastFailureAt = lastGattFailureRef.current[deviceId] || 0;
         var now = Date.now();
@@ -99018,9 +99042,18 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
           return;
         }
         syncInFlightRef.current.add(deviceId);
+        setGattSyncStatus(function (current) {
+          return Object.assign({}, current, {
+            state: 'syncing',
+            targetUserId: user.userId,
+            targetDeviceId: deviceId,
+            lastStartedAt: Date.now(),
+            lastError: null
+          });
+        });
         try {
           var result = yield (0, _$$_REQUIRE(_dependencyMap[14], "./src/services/MeshTransportService").processIncomingMeshPacket)({
-            user: user,
+            user: syncUser,
             ownUserId: ownUserIdRef.current,
             ownMeshId: ownMeshIdRef.current,
             currentSightings: sightingsRef.current,
@@ -99036,11 +99069,36 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
           }
           lastGattSyncRef.current[deviceId] = Date.now();
           if (!result.handled) {
-            lastGattFailureRef.current[deviceId] = Date.now();
+            var failureAt = Date.now();
+            lastGattFailureRef.current[deviceId] = failureAt;
+            setGattSyncStatus(function (current) {
+              return Object.assign({}, current, {
+                state: 'failed',
+                lastFailureAt: failureAt,
+                lastError: 'Payload was not handled.'
+              });
+            });
+          } else {
+            setGattSyncStatus(function (current) {
+              return Object.assign({}, current, {
+                state: 'success',
+                lastSuccessAt: Date.now(),
+                lastError: null
+              });
+            });
           }
         } catch (error) {
-          lastGattFailureRef.current[deviceId] = Date.now();
-          console.log('OFFLINK_GATT_SYNC_ERROR', String(error));
+          var _failureAt = Date.now();
+          var message = String(error);
+          lastGattFailureRef.current[deviceId] = _failureAt;
+          setGattSyncStatus(function (current) {
+            return Object.assign({}, current, {
+              state: 'failed',
+              lastFailureAt: _failureAt,
+              lastError: message
+            });
+          });
+          console.log('OFFLINK_GATT_SYNC_ERROR', message);
         } finally {
           syncInFlightRef.current.delete(deviceId);
         }
@@ -99117,7 +99175,10 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       return /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[16], "./src/screens/MeshDiagnosticsScreen").MeshDiagnosticsScreen, {
         onBack: function onBack() {
           return setShowMeshDiagnostics(false);
-        }
+        },
+        bleStatus: bleStatus,
+        nearbyUsers: nearbyUsers,
+        gattSyncStatus: gattSyncStatus
       });
     }
     if (showMap) {
@@ -99925,6 +99986,8 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   var localMeshId = null;
   var TOPOLOGY_PUBLISH_THROTTLE_MS = 5000;
   var lastSequenceByNode = {};
+  var lastTimestampByNode = {};
+  var TOPOLOGY_RESTART_GRACE_MS = 5000;
   function setLocalMeshId(meshId) {
     localMeshId = meshId;
     _MeshTopology.default.setSelfMeshId(meshId);
@@ -99946,11 +100009,8 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       publishPromise = (0, _asyncToGenerator2.default)(function* () {
         var summary = (0, _$$_REQUIRE(_dependencyMap[3], "./MeshTopologyProtocol").createMeshTopologySummary)(selfMeshId, _MeshTopology.default.getTopology());
         var topology = (0, _$$_REQUIRE(_dependencyMap[3], "./MeshTopologyProtocol").encodeMeshTopologySummary)(summary);
-        var encoded = (0, _$$_REQUIRE(_dependencyMap[4], "./MeshPayloadBundleService").encodeMeshPayloadBundle)({
-          version: 1,
-          topology: topology,
-          mesh: null
-        });
+        (0, _$$_REQUIRE(_dependencyMap[4], "./MeshPayloadBundleService").setCurrentTopologyPayload)(topology);
+        var encoded = (0, _$$_REQUIRE(_dependencyMap[4], "./MeshPayloadBundleService").createCurrentMeshPayloadBundle)();
         yield (0, _$$_REQUIRE(_dependencyMap[5], "./GattService").setGattPayload)(encoded);
         lastPublishAt = Date.now();
         lastPublishedPayload = encoded;
@@ -99966,7 +100026,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     return _publishLocalTopology.apply(this, arguments);
   }
   function applyTopologyPayload(payload) {
-    var _lastSequenceByNode$s;
+    var _lastSequenceByNode$s, _lastTimestampByNode$;
     var ownMeshId = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : localMeshId;
     var ownUserId = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : null;
     var viaOverride = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : null;
@@ -99982,15 +100042,29 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       return true;
     }
     var lastSequence = (_lastSequenceByNode$s = lastSequenceByNode[summary.nodeId]) != null ? _lastSequenceByNode$s : 0;
-    if (summary.sequence <= lastSequence) {
+    var lastTimestamp = (_lastTimestampByNode$ = lastTimestampByNode[summary.nodeId]) != null ? _lastTimestampByNode$ : 0;
+    var looksLikeRemoteRestart = summary.sequence < lastSequence && summary.timestamp > lastTimestamp + TOPOLOGY_RESTART_GRACE_MS;
+    if (summary.sequence <= lastSequence && !looksLikeRemoteRestart) {
       console.log('OFFLINK_TOPOLOGY_STALE', JSON.stringify({
         nodeId: summary.nodeId,
         sequence: summary.sequence,
-        lastSequence: lastSequence
+        lastSequence: lastSequence,
+        timestamp: summary.timestamp,
+        lastTimestamp: lastTimestamp
       }));
       return true;
     }
+    if (looksLikeRemoteRestart) {
+      console.log('OFFLINK_TOPOLOGY_SEQUENCE_RESET_ACCEPTED', JSON.stringify({
+        nodeId: summary.nodeId,
+        sequence: summary.sequence,
+        previousSequence: lastSequence,
+        timestamp: summary.timestamp,
+        previousTimestamp: lastTimestamp
+      }));
+    }
     lastSequenceByNode[summary.nodeId] = summary.sequence;
+    lastTimestampByNode[summary.nodeId] = summary.timestamp;
     console.log('OFFLINK_TOPOLOGY_APPLY', JSON.stringify(summary));
     for (var neighbour of summary.neighbours) {
       var via = viaOverride || summary.nodeId;
@@ -100513,11 +100587,29 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     value: true
   });
   exports.OFFLINK_BUNDLE_PREFIX = void 0;
+  exports.createCurrentMeshPayloadBundle = createCurrentMeshPayloadBundle;
   exports.decodeMeshPayloadBundle = decodeMeshPayloadBundle;
   exports.encodeMeshPayloadBundle = encodeMeshPayloadBundle;
   exports.extractMeshPayload = extractMeshPayload;
   exports.extractTopologyPayload = extractTopologyPayload;
+  exports.setCurrentMeshPayload = setCurrentMeshPayload;
+  exports.setCurrentTopologyPayload = setCurrentTopologyPayload;
   var OFFLINK_BUNDLE_PREFIX = exports.OFFLINK_BUNDLE_PREFIX = 'OLBUNDLE|';
+  var currentTopologyPayload = null;
+  var currentMeshPayload = null;
+  function setCurrentTopologyPayload(payload) {
+    currentTopologyPayload = payload;
+  }
+  function setCurrentMeshPayload(payload) {
+    currentMeshPayload = payload;
+  }
+  function createCurrentMeshPayloadBundle() {
+    return encodeMeshPayloadBundle({
+      version: 1,
+      topology: currentTopologyPayload,
+      mesh: currentMeshPayload
+    });
+  }
   function encodeMeshPayloadBundle(bundle) {
     return `${OFFLINK_BUNDLE_PREFIX}${JSON.stringify(bundle)}`;
   }
@@ -100568,15 +100660,21 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   exports.publishTopologyToGatt = publishTopologyToGatt;
   exports.readGattPayloadFromDevice = readGattPayloadFromDevice;
   exports.readGattPayloadFromNearest = readGattPayloadFromNearest;
+  exports.readGattPayloadsFromDevice = readGattPayloadsFromDevice;
   exports.readTopologyFromNearest = readTopologyFromNearest;
   exports.setGattPayload = setGattPayload;
+  exports.setGattTransportPayload = setGattTransportPayload;
   exports.startGattServer = startGattServer;
   exports.stopGattServer = stopGattServer;
   var _asyncToGenerator2 = _interopRequireDefault(_$$_REQUIRE(_dependencyMap[1], "@babel/runtime/helpers/asyncToGenerator"));
   var _reactNative = _$$_REQUIRE(_dependencyMap[2], "react-native");
   var _MeshTopology = _interopRequireDefault(_$$_REQUIRE(_dependencyMap[3], "./MeshTopology"));
   var SERVICE_UUID = '0000feed-0000-1000-8000-00805f9b34fb';
-  var MESH_CHARACTERISTIC_UUID = '0000beef-0000-1000-8000-00805f9b34fb';
+  var TOPOLOGY_CHARACTERISTIC_UUID = '0000beef-0000-1000-8000-00805f9b34fb';
+  var TRANSPORT_META_CHARACTERISTIC_UUID = '0000cafe-0000-1000-8000-00805f9b34fb';
+  var TRANSPORT_CONTROL_CHARACTERISTIC_UUID = '0000caf1-0000-1000-8000-00805f9b34fb';
+  var TRANSPORT_CHUNK_CHARACTERISTIC_UUID = '0000caf2-0000-1000-8000-00805f9b34fb';
+  var MAX_TRANSPORT_CHUNKS = 32;
   var OfflinkGatt = _reactNative.NativeModules.OfflinkGatt;
   var gattClient = new (_$$_REQUIRE(_dependencyMap[4], "react-native-ble-plx").BleManager)();
   function withTimeout(promise, timeoutMs, label) {
@@ -100592,6 +100690,24 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         reject(error);
       });
     });
+  }
+  function encodeBase64(value) {
+    var bytes = Array.from(value).map(function (character) {
+      return character.charCodeAt(0);
+    });
+    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    var output = '';
+    for (var index = 0; index < bytes.length; index += 3) {
+      var first = bytes[index];
+      var second = bytes[index + 1];
+      var third = bytes[index + 2];
+      var triplet = first << 16 | (second != null ? second : 0) << 8 | (third != null ? third : 0);
+      output += chars[triplet >> 18 & 63];
+      output += chars[triplet >> 12 & 63];
+      output += second === undefined ? '=' : chars[triplet >> 6 & 63];
+      output += third === undefined ? '=' : chars[triplet & 63];
+    }
+    return output;
   }
   function decodeBase64(value) {
     var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
@@ -100639,6 +100755,15 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       yield OfflinkGatt.setPayload(payload);
     });
     return _setGattPayload.apply(this, arguments);
+  }
+  function setGattTransportPayload(_x2) {
+    return _setGattTransportPayload.apply(this, arguments);
+  }
+  function _setGattTransportPayload() {
+    _setGattTransportPayload = (0, _asyncToGenerator2.default)(function* (payload) {
+      yield OfflinkGatt.setTransportPayload(payload);
+    });
+    return _setGattTransportPayload.apply(this, arguments);
   }
   function findNearestOfflinkDevice() {
     return _findNearestOfflinkDevice.apply(this, arguments);
@@ -100692,7 +100817,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     });
     return _readGattPayloadFromNearest.apply(this, arguments);
   }
-  function readGattPayloadFromDevice(_x2) {
+  function readGattPayloadFromDevice(_x3) {
     return _readGattPayloadFromDevice.apply(this, arguments);
   }
   function _readGattPayloadFromDevice() {
@@ -100705,7 +100830,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         console.log('OFFLINK_GATT_DISCOVER_START', deviceId);
         yield withTimeout(device.discoverAllServicesAndCharacteristics(), 6000, 'GATT discover');
         console.log('OFFLINK_GATT_READ_START', deviceId);
-        var characteristic = yield withTimeout(device.readCharacteristicForService(SERVICE_UUID, MESH_CHARACTERISTIC_UUID), 6000, 'GATT read');
+        var characteristic = yield withTimeout(device.readCharacteristicForService(SERVICE_UUID, TOPOLOGY_CHARACTERISTIC_UUID), 6000, 'GATT read');
         var decoded = decodeBase64(characteristic.value || '');
         console.log('OFFLINK_GATT_READ_SUCCESS', JSON.stringify({
           deviceId: deviceId,
@@ -100717,6 +100842,68 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       }
     });
     return _readGattPayloadFromDevice.apply(this, arguments);
+  }
+  function readGattPayloadsFromDevice(_x4) {
+    return _readGattPayloadsFromDevice.apply(this, arguments);
+  }
+  function _readGattPayloadsFromDevice() {
+    _readGattPayloadsFromDevice = (0, _asyncToGenerator2.default)(function* (deviceId) {
+      console.log('OFFLINK_GATT_CONNECT_START', deviceId);
+      var device = yield withTimeout(gattClient.connectToDevice(deviceId, {
+        timeout: 8000
+      }), 9000, 'GATT connect');
+      try {
+        console.log('OFFLINK_GATT_DISCOVER_START', deviceId);
+        yield withTimeout(device.discoverAllServicesAndCharacteristics(), 6000, 'GATT discover');
+        var topologyCharacteristic = yield withTimeout(device.readCharacteristicForService(SERVICE_UUID, TOPOLOGY_CHARACTERISTIC_UUID), 6000, 'GATT topology read');
+        var transport = '';
+        try {
+          var metadataCharacteristic = yield withTimeout(device.readCharacteristicForService(SERVICE_UUID, TRANSPORT_META_CHARACTERISTIC_UUID), 6000, 'GATT transport metadata read');
+          var metadata = decodeBase64(metadataCharacteristic.value || '');
+          var metadataParts = metadata.split('|');
+          var chunkCount = Number(metadataParts[2] || 0);
+          var encodedLength = Number(metadataParts[3] || 0);
+          if (metadataParts[0] !== 'OLTX' || metadataParts[1] !== '1' || !Number.isInteger(chunkCount) || chunkCount < 0 || chunkCount > MAX_TRANSPORT_CHUNKS || !Number.isInteger(encodedLength) || encodedLength < 0) {
+            throw new Error(`Invalid transport metadata: ${metadata}`);
+          }
+          var chunks = [];
+          for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+            yield withTimeout(device.writeCharacteristicWithResponseForService(SERVICE_UUID, TRANSPORT_CONTROL_CHARACTERISTIC_UUID, encodeBase64(String(chunkIndex))), 6000, `GATT transport chunk ${chunkIndex} select`);
+            var chunkCharacteristic = yield withTimeout(device.readCharacteristicForService(SERVICE_UUID, TRANSPORT_CHUNK_CHARACTERISTIC_UUID), 6000, `GATT transport chunk ${chunkIndex} read`);
+            chunks.push(decodeBase64(chunkCharacteristic.value || ''));
+          }
+          var encodedTransport = chunks.join('');
+          if (encodedTransport.length !== encodedLength) {
+            throw new Error(`Transport length mismatch: expected ${encodedLength}, got ${encodedTransport.length}`);
+          }
+          transport = decodeBase64(encodedTransport);
+          console.log('OFFLINK_GATT_TRANSPORT_REASSEMBLED', JSON.stringify({
+            deviceId: deviceId,
+            chunkCount: chunkCount,
+            encodedLength: encodedLength,
+            decodedLength: transport.length
+          }));
+        } catch (error) {
+          console.log('OFFLINK_GATT_TRANSPORT_READ_ERROR', JSON.stringify({
+            deviceId: deviceId,
+            error: String(error)
+          }));
+        }
+        var topology = decodeBase64(topologyCharacteristic.value || '');
+        console.log('OFFLINK_GATT_DUAL_READ_SUCCESS', JSON.stringify({
+          deviceId: deviceId,
+          topologyLength: topology.length,
+          transportLength: transport.length
+        }));
+        return {
+          topology: topology,
+          transport: transport
+        };
+      } finally {
+        yield gattClient.cancelDeviceConnection(device.id).catch(function () {});
+      }
+    });
+    return _readGattPayloadsFromDevice.apply(this, arguments);
   }
   function readTopologyFromNearest() {
     return _readTopologyFromNearest.apply(this, arguments);
@@ -100740,7 +100927,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     });
     return _readTopologyFromNearest.apply(this, arguments);
   }
-  function publishTopologyToGatt(_x3) {
+  function publishTopologyToGatt(_x5) {
     return _publishTopologyToGatt.apply(this, arguments);
   }
   function _publishTopologyToGatt() {
@@ -102631,7 +102818,10 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   Object.defineProperty(exports, "__esModule", {
     value: true
   });
+  exports.createMeshAckEnvelope = createMeshAckEnvelope;
   exports.createMeshPayload = createMeshPayload;
+  exports.isMeshAckEnvelope = isMeshAckEnvelope;
+  exports.isMeshSightingsEnvelope = isMeshSightingsEnvelope;
   exports.mergeMeshSightings = mergeMeshSightings;
   exports.parseMeshPayload = parseMeshPayload;
   exports.stringifyMeshEnvelope = stringifyMeshEnvelope;
@@ -102649,6 +102839,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }).slice(0, 25);
     var payload = {
       v: 1,
+      kind: 'sightings',
       senderId: senderId,
       createdAt: Date.now(),
       sightings: freshSightings
@@ -102657,22 +102848,42 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   }
   function parseMeshPayload(input) {
     try {
-      var _parsed$payload, _parsed$payload2, _parsed$payload3;
+      var _parsed$payload, _parsed$payload2;
       var parsed = JSON.parse(input);
 
       // New Phase 4.2 packet format.
-      if ('id' in parsed && 'origin' in parsed && 'ttl' in parsed && 'payload' in parsed && ((_parsed$payload = parsed.payload) == null ? void 0 : _parsed$payload.v) === 1 && (_parsed$payload2 = parsed.payload) != null && _parsed$payload2.senderId && Array.isArray((_parsed$payload3 = parsed.payload) == null ? void 0 : _parsed$payload3.sightings)) {
-        return parsed;
+      if ('id' in parsed && 'origin' in parsed && 'ttl' in parsed && 'payload' in parsed && ((_parsed$payload = parsed.payload) == null ? void 0 : _parsed$payload.v) === 1 && (_parsed$payload2 = parsed.payload) != null && _parsed$payload2.senderId) {
+        if (parsed.payload.kind === 'ack' && typeof parsed.payload.ackFor === 'string') {
+          return parsed;
+        }
+        if ((!parsed.payload.kind || parsed.payload.kind === 'sightings') && Array.isArray(parsed.payload.sightings)) {
+          return parsed;
+        }
       }
 
       // Backwards compatibility for older pre-packet GATT payloads.
-      if ('v' in parsed && parsed.v === 1 && parsed.senderId && Array.isArray(parsed.sightings)) {
+      if ('v' in parsed && parsed.v === 1 && 'senderId' in parsed && typeof parsed.senderId === 'string' && 'sightings' in parsed && Array.isArray(parsed.sightings)) {
         return (0, _$$_REQUIRE(_dependencyMap[0], "./MeshEngine").createMeshPacket)(parsed.senderId, parsed);
       }
       return null;
     } catch (_unused) {
       return null;
     }
+  }
+  function createMeshAckEnvelope(senderId, ackFor) {
+    return (0, _$$_REQUIRE(_dependencyMap[0], "./MeshEngine").createMeshPacket)(senderId, {
+      v: 1,
+      kind: 'ack',
+      senderId: senderId,
+      createdAt: Date.now(),
+      ackFor: ackFor
+    });
+  }
+  function isMeshAckEnvelope(envelope) {
+    return envelope.payload.kind === 'ack';
+  }
+  function isMeshSightingsEnvelope(envelope) {
+    return !envelope.payload.kind || envelope.payload.kind === 'sightings';
   }
   function stringifyMeshEnvelope(envelope) {
     return JSON.stringify(envelope);
@@ -102934,6 +103145,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   });
   exports.processIncomingMeshPacket = processIncomingMeshPacket;
   var _asyncToGenerator2 = _interopRequireDefault(_$$_REQUIRE(_dependencyMap[1], "@babel/runtime/helpers/asyncToGenerator"));
+  var _MeshTopology = _interopRequireDefault(_$$_REQUIRE(_dependencyMap[2], "./MeshTopology"));
   function processIncomingMeshPacket(_x) {
     return _processIncomingMeshPacket.apply(this, arguments);
   }
@@ -102961,30 +103173,36 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         meshId: user.meshId,
         deviceId: user.deviceId
       }));
-      var rawPayload = yield (0, _$$_REQUIRE(_dependencyMap[2], "./GattService").readGattPayloadFromDevice)(user.deviceId);
+      var gattPayloads = yield (0, _$$_REQUIRE(_dependencyMap[3], "./GattService").readGattPayloadsFromDevice)(user.deviceId);
+      var topologyPayload = gattPayloads.topology;
+      var meshPayload = gattPayloads.transport;
       console.log('OFFLINK_GATT_SYNC_PAYLOAD', JSON.stringify({
         userId: user.userId,
-        length: rawPayload.length,
-        startsWith: rawPayload.slice(0, 24)
+        topologyLength: topologyPayload.length,
+        transportLength: meshPayload.length,
+        topologyStartsWith: topologyPayload.slice(0, 24),
+        transportStartsWith: meshPayload.slice(0, 24)
       }));
-      if ((0, _$$_REQUIRE(_dependencyMap[3], "./MeshTopologyExchangeService").applyTopologyPayload)(rawPayload, ownMeshId, ownUserId, user.userId)) {
+      var didApplyTopology = (0, _$$_REQUIRE(_dependencyMap[4], "./MeshTopologyExchangeService").applyTopologyPayload)(topologyPayload, ownMeshId, ownUserId, user.userId);
+      if (didApplyTopology) {
         console.log('OFFLINK_TOPOLOGY_SYNC_APPLIED', user.userId);
         if (ownMeshId) {
-          (0, _$$_REQUIRE(_dependencyMap[3], "./MeshTopologyExchangeService").publishLocalTopology)(ownMeshId, true).catch(function (error) {
+          (0, _$$_REQUIRE(_dependencyMap[4], "./MeshTopologyExchangeService").publishLocalTopology)(ownMeshId, true).catch(function (error) {
             return console.log('OFFLINK_TOPOLOGY_REPUBLISH_ERROR', String(error));
           });
         }
-        (0, _$$_REQUIRE(_dependencyMap[4], "./MeshNeighbourReliability").recordGattSuccess)(user.userId);
+      }
+      if (didApplyTopology && !meshPayload) {
+        (0, _$$_REQUIRE(_dependencyMap[5], "./MeshNeighbourReliability").recordGattSuccess)(user.userId);
         return {
           nextSightings: null,
           handled: true
         };
       }
-      var meshPayload = (0, _$$_REQUIRE(_dependencyMap[5], "./MeshPayloadBundleService").extractMeshPayload)(rawPayload);
       var envelope = meshPayload ? (0, _$$_REQUIRE(_dependencyMap[6], "./MeshSyncService").parseMeshPayload)(meshPayload) : null;
       if (!envelope) {
         console.log('OFFLINK_MESH_PACKET_DROP', 'parse-failed');
-        (0, _$$_REQUIRE(_dependencyMap[4], "./MeshNeighbourReliability").recordGattFailure)(user.userId);
+        (0, _$$_REQUIRE(_dependencyMap[5], "./MeshNeighbourReliability").recordGattFailure)(user.userId);
         return {
           nextSightings: null,
           handled: false
@@ -102999,20 +103217,88 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         reason: decision.reason,
         accepted: decision.accepted,
         shouldRelay: decision.shouldRelay,
-        sightings: envelope.payload.sightings.length
+        kind: envelope.payload.kind || 'sightings',
+        sightings: (0, _$$_REQUIRE(_dependencyMap[6], "./MeshSyncService").isMeshSightingsEnvelope)(envelope) ? envelope.payload.sightings.length : 0
       }));
       if (!decision.accepted) {
-        (0, _$$_REQUIRE(_dependencyMap[4], "./MeshNeighbourReliability").recordGattSuccess)(user.userId);
+        (0, _$$_REQUIRE(_dependencyMap[5], "./MeshNeighbourReliability").recordGattSuccess)(user.userId);
         return {
           nextSightings: null,
           handled: true
         };
+      }
+      if ((0, _$$_REQUIRE(_dependencyMap[6], "./MeshSyncService").isMeshAckEnvelope)(envelope)) {
+        console.log('OFFLINK_MESH_ACK_RECEIVED', JSON.stringify({
+          ackFor: envelope.payload.ackFor,
+          from: envelope.payload.senderId,
+          packetId: envelope.id,
+          ttl: envelope.ttl,
+          hopCount: envelope.hopCount
+        }));
+        if (decision.shouldRelay) {
+          var relayedAck = (0, _$$_REQUIRE(_dependencyMap[7], "./MeshEngine").relayPacket)(envelope);
+          var _didQueueAck = (0, _$$_REQUIRE(_dependencyMap[8], "./MeshRelayQueue").enqueueRelayPacket)(relayedAck);
+          console.log('OFFLINK_MESH_ACK_RELAY', JSON.stringify({
+            packetId: relayedAck.id,
+            ackFor: relayedAck.payload.ackFor,
+            origin: relayedAck.origin,
+            ttl: relayedAck.ttl,
+            hopCount: relayedAck.hopCount,
+            queued: _didQueueAck,
+            queueSize: (0, _$$_REQUIRE(_dependencyMap[8], "./MeshRelayQueue").getRelayQueueSize)()
+          }));
+        }
+        (0, _$$_REQUIRE(_dependencyMap[5], "./MeshNeighbourReliability").recordGattSuccess)(user.userId);
+        return {
+          nextSightings: null,
+          handled: true
+        };
+      }
+      if (!(0, _$$_REQUIRE(_dependencyMap[6], "./MeshSyncService").isMeshSightingsEnvelope)(envelope)) {
+        console.log('OFFLINK_MESH_PACKET_DROP', 'unknown-kind');
+        (0, _$$_REQUIRE(_dependencyMap[5], "./MeshNeighbourReliability").recordGattFailure)(user.userId);
+        return {
+          nextSightings: null,
+          handled: false
+        };
+      }
+      var ackEnvelope = (0, _$$_REQUIRE(_dependencyMap[6], "./MeshSyncService").createMeshAckEnvelope)(ownUserId, envelope.id);
+      var didQueueAck = (0, _$$_REQUIRE(_dependencyMap[8], "./MeshRelayQueue").enqueueRelayPacket)(ackEnvelope);
+      console.log('OFFLINK_MESH_ACK_CREATED', JSON.stringify({
+        packetId: ackEnvelope.id,
+        ackFor: envelope.id,
+        origin: ackEnvelope.origin,
+        queued: didQueueAck,
+        queueSize: (0, _$$_REQUIRE(_dependencyMap[8], "./MeshRelayQueue").getRelayQueueSize)()
+      }));
+      if (didQueueAck) {
+        (0, _$$_REQUIRE(_dependencyMap[9], "./MeshDispatcher").dispatchNextMeshPacket)('ack-created').catch(function (error) {
+          return console.log('OFFLINK_MESH_ACK_DISPATCH_ERROR', String(error));
+        });
       }
       var nextSightings = (0, _$$_REQUIRE(_dependencyMap[6], "./MeshSyncService").mergeMeshSightings)({
         currentSightings: currentSightings,
         incomingSightings: envelope.payload.sightings,
         ownUserId: ownUserId,
         seenBy: envelope.payload.senderId
+      });
+      envelope.payload.sightings.filter(function (sighting) {
+        return sighting.userId !== ownUserId;
+      }).filter(function (sighting) {
+        return sighting.userId !== envelope.payload.senderId;
+      }).forEach(function (sighting) {
+        var _sighting$rssi, _sighting$hops;
+        var rssi = (_sighting$rssi = sighting.rssi) != null ? _sighting$rssi : -85;
+        var quality = Math.max(5, Math.min(100, Math.round((rssi + 95) / 45 * 95 + 5)));
+        var hops = Math.max(2, Math.min(8, ((_sighting$hops = sighting.hops) != null ? _sighting$hops : 0) + 2));
+        _MeshTopology.default.updateRemoteNode(sighting.userId, sighting.emoji || 'remote', quality, hops, user.meshId || user.userId, sighting.userId);
+        console.log('OFFLINK_TRANSPORT_REMOTE_ROUTE_APPLIED', JSON.stringify({
+          userId: sighting.userId,
+          via: user.meshId || user.userId,
+          hops: hops,
+          quality: quality,
+          sourcePacket: envelope.id
+        }));
       });
       saveSightings(nextSightings);
       if (decision.shouldRelay) {
@@ -103028,7 +103314,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         }));
       }
       publishGattMesh(nextSightings);
-      (0, _$$_REQUIRE(_dependencyMap[4], "./MeshNeighbourReliability").recordGattSuccess)(user.userId);
+      (0, _$$_REQUIRE(_dependencyMap[5], "./MeshNeighbourReliability").recordGattSuccess)(user.userId);
       return {
         nextSightings: nextSightings,
         handled: true
@@ -103036,7 +103322,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     });
     return _processIncomingMeshPacket.apply(this, arguments);
   }
-},651,[1,165,631,626,652,630,648,649,653],"src/services/MeshTransportService.ts");
+},651,[1,165,627,631,626,652,648,649,653,654],"src/services/MeshTransportService.ts");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
   Object.defineProperty(exports, "__esModule", {
@@ -103213,7 +103499,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
           hopCount: nextPacket.hopCount,
           remaining: (0, _$$_REQUIRE(_dependencyMap[2], "./MeshRelayQueue").getRelayQueueSize)()
         }));
-        yield (0, _$$_REQUIRE(_dependencyMap[3], "./GattService").setGattPayload)((0, _$$_REQUIRE(_dependencyMap[4], "./MeshSyncService").stringifyMeshEnvelope)(nextPacket));
+        yield (0, _$$_REQUIRE(_dependencyMap[3], "./GattService").setGattTransportPayload)((0, _$$_REQUIRE(_dependencyMap[4], "./MeshSyncService").stringifyMeshEnvelope)(nextPacket));
         (0, _$$_REQUIRE(_dependencyMap[5], "./MeshDiagnosticsService").recordMeshPacketRelayed)(nextPacket);
         return true;
       } finally {
@@ -103331,7 +103617,10 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   }
   function MeshDiagnosticsScreen(_ref2) {
     var _this = this;
-    var onBack = _ref2.onBack;
+    var onBack = _ref2.onBack,
+      bleStatus = _ref2.bleStatus,
+      nearbyUsers = _ref2.nearbyUsers,
+      gattSyncStatus = _ref2.gattSyncStatus;
     var _useState = (0, _react.useState)((0, _$$_REQUIRE(_dependencyMap[7], "../services/MeshDiagnosticsService").getMeshDiagnosticsSnapshot)()),
       _useState2 = (0, _slicedToArray2.default)(_useState, 2),
       snapshot = _useState2[0],
@@ -103424,6 +103713,72 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
           onPress: onBack
         }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
           style: styles.spacer
+        }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
+          style: styles.card,
+          children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+            style: styles.cardTitle,
+            children: "Scanner State"
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(StatRow, {
+            label: "BLE status",
+            value: bleStatus
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(StatRow, {
+            label: "Nearby users",
+            value: nearbyUsers.length
+          }), nearbyUsers.length === 0 ? /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+            style: styles.empty,
+            children: "No BLE advertisements currently detected."
+          }) : nearbyUsers.map(function (user) {
+            var _user$rssi;
+            return /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
+              style: styles.nodeCard,
+              children: [/*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
+                style: styles.nodeHeader,
+                children: [/*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.Text, {
+                  style: styles.nodeName,
+                  children: [user.emoji, " ", user.userId]
+                }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.Text, {
+                  style: styles.healthBadge,
+                  children: [(_user$rssi = user.rssi) != null ? _user$rssi : 'n/a', " dBm"]
+                })]
+              }), /*#__PURE__*/(0, _jsxRuntime.jsx)(StatRow, {
+                label: "Mesh ID",
+                value: user.meshId || 'missing'
+              }), /*#__PURE__*/(0, _jsxRuntime.jsx)(StatRow, {
+                label: "Device ID",
+                value: user.deviceId || 'missing'
+              }), /*#__PURE__*/(0, _jsxRuntime.jsx)(StatRow, {
+                label: "Last advert",
+                value: formatAge(user.lastSeenAt)
+              })]
+            }, `${user.userId}-${user.deviceId || 'unknown'}`);
+          })]
+        }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
+          style: styles.card,
+          children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+            style: styles.cardTitle,
+            children: "GATT Sync State"
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(StatRow, {
+            label: "State",
+            value: gattSyncStatus.state
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(StatRow, {
+            label: "Target user",
+            value: gattSyncStatus.targetUserId || 'none'
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(StatRow, {
+            label: "Target device",
+            value: gattSyncStatus.targetDeviceId || 'none'
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(StatRow, {
+            label: "Last started",
+            value: gattSyncStatus.lastStartedAt ? formatAge(gattSyncStatus.lastStartedAt) : 'never'
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(StatRow, {
+            label: "Last success",
+            value: gattSyncStatus.lastSuccessAt ? formatAge(gattSyncStatus.lastSuccessAt) : 'never'
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(StatRow, {
+            label: "Last failure",
+            value: gattSyncStatus.lastFailureAt ? formatAge(gattSyncStatus.lastFailureAt) : 'never'
+          }), gattSyncStatus.lastError ? /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+            style: styles.empty,
+            children: gattSyncStatus.lastError
+          }) : null]
         }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
           style: styles.card,
           children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {

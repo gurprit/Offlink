@@ -1,12 +1,25 @@
 import {OfflinkSighting} from '../models/types';
 import {MeshPacket, createMeshPacket} from './MeshEngine';
 
-export type OfflinkMeshPayload = {
+export type OfflinkMeshSightingsPayload = {
   v: 1;
+  kind?: 'sightings';
   senderId: string;
   createdAt: number;
   sightings: OfflinkSighting[];
 };
+
+export type OfflinkMeshAckPayload = {
+  v: 1;
+  kind: 'ack';
+  senderId: string;
+  createdAt: number;
+  ackFor: string;
+};
+
+export type OfflinkMeshPayload =
+  | OfflinkMeshSightingsPayload
+  | OfflinkMeshAckPayload;
 
 export type OfflinkMeshEnvelope = MeshPacket<OfflinkMeshPayload>;
 
@@ -22,8 +35,9 @@ export function createMeshPayload(
     .sort((a, b) => b.lastSeenAt - a.lastSeenAt)
     .slice(0, 25);
 
-  const payload: OfflinkMeshPayload = {
+  const payload: OfflinkMeshSightingsPayload = {
     v: 1,
+    kind: 'sightings',
     senderId,
     createdAt: Date.now(),
     sightings: freshSightings,
@@ -43,17 +57,30 @@ export function parseMeshPayload(input: string): OfflinkMeshEnvelope | null {
       'ttl' in parsed &&
       'payload' in parsed &&
       parsed.payload?.v === 1 &&
-      parsed.payload?.senderId &&
-      Array.isArray(parsed.payload?.sightings)
+      parsed.payload?.senderId
     ) {
-      return parsed;
+      if (
+        parsed.payload.kind === 'ack' &&
+        typeof parsed.payload.ackFor === 'string'
+      ) {
+        return parsed;
+      }
+
+      if (
+        (!parsed.payload.kind || parsed.payload.kind === 'sightings') &&
+        Array.isArray(parsed.payload.sightings)
+      ) {
+        return parsed;
+      }
     }
 
     // Backwards compatibility for older pre-packet GATT payloads.
     if (
       'v' in parsed &&
       parsed.v === 1 &&
-      parsed.senderId &&
+      'senderId' in parsed &&
+      typeof parsed.senderId === 'string' &&
+      'sightings' in parsed &&
       Array.isArray(parsed.sightings)
     ) {
       return createMeshPacket(parsed.senderId, parsed);
@@ -63,6 +90,32 @@ export function parseMeshPayload(input: string): OfflinkMeshEnvelope | null {
   } catch {
     return null;
   }
+}
+
+
+export function createMeshAckEnvelope(
+  senderId: string,
+  ackFor: string,
+): OfflinkMeshEnvelope {
+  return createMeshPacket(senderId, {
+    v: 1,
+    kind: 'ack',
+    senderId,
+    createdAt: Date.now(),
+    ackFor,
+  });
+}
+
+export function isMeshAckEnvelope(
+  envelope: OfflinkMeshEnvelope,
+): envelope is MeshPacket<OfflinkMeshAckPayload> {
+  return envelope.payload.kind === 'ack';
+}
+
+export function isMeshSightingsEnvelope(
+  envelope: OfflinkMeshEnvelope,
+): envelope is MeshPacket<OfflinkMeshSightingsPayload> {
+  return !envelope.payload.kind || envelope.payload.kind === 'sightings';
 }
 
 export function stringifyMeshEnvelope(

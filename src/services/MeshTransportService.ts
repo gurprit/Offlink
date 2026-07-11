@@ -1,14 +1,18 @@
 import {NearbyOfflinkUser, OfflinkSighting} from '../models/types';
-import {readGattPayloadFromDevice} from './GattService';
+import {readGattPayloadsFromDevice} from './GattService';
 import {
+  createMeshAckEnvelope,
+  isMeshAckEnvelope,
+  isMeshSightingsEnvelope,
   mergeMeshSightings,
   parseMeshPayload,
 } from './MeshSyncService';
 import {evaluateMeshPacket, relayPacket} from './MeshEngine';
 import {enqueueRelayPacket, getRelayQueueSize} from './MeshRelayQueue';
+import {dispatchNextMeshPacket} from './MeshDispatcher';
+import MeshTopology from './MeshTopology';
 import {recordGattFailure, recordGattSuccess} from './MeshNeighbourReliability';
 import {applyTopologyPayload, publishLocalTopology} from './MeshTopologyExchangeService';
-import {extractMeshPayload} from './MeshPayloadBundleService';
 
 export type ProcessIncomingMeshPacketArgs = {
   user: NearbyOfflinkUser;
@@ -57,18 +61,29 @@ export async function processIncomingMeshPacket({
     }),
   );
 
-  const rawPayload = await readGattPayloadFromDevice(user.deviceId);
+  const gattPayloads = await readGattPayloadsFromDevice(user.deviceId);
+  const topologyPayload = gattPayloads.topology;
+  const meshPayload = gattPayloads.transport;
 
   console.log(
     'OFFLINK_GATT_SYNC_PAYLOAD',
     JSON.stringify({
       userId: user.userId,
-      length: rawPayload.length,
-      startsWith: rawPayload.slice(0, 24),
+      topologyLength: topologyPayload.length,
+      transportLength: meshPayload.length,
+      topologyStartsWith: topologyPayload.slice(0, 24),
+      transportStartsWith: meshPayload.slice(0, 24),
     }),
   );
 
-  if (applyTopologyPayload(rawPayload, ownMeshId, ownUserId, user.userId)) {
+  const didApplyTopology = applyTopologyPayload(
+    topologyPayload,
+    ownMeshId,
+    ownUserId,
+    user.userId,
+  );
+
+  if (didApplyTopology) {
     console.log('OFFLINK_TOPOLOGY_SYNC_APPLIED', user.userId);
 
     if (ownMeshId) {
@@ -76,7 +91,9 @@ export async function processIncomingMeshPacket({
         console.log('OFFLINK_TOPOLOGY_REPUBLISH_ERROR', String(error)),
       );
     }
+  }
 
+  if (didApplyTopology && !meshPayload) {
     recordGattSuccess(user.userId);
 
     return {
@@ -84,8 +101,6 @@ export async function processIncomingMeshPacket({
       handled: true,
     };
   }
-
-  const meshPayload = extractMeshPayload(rawPayload);
   const envelope = meshPayload ? parseMeshPayload(meshPayload) : null;
 
   if (!envelope) {
@@ -110,7 +125,10 @@ export async function processIncomingMeshPacket({
       reason: decision.reason,
       accepted: decision.accepted,
       shouldRelay: decision.shouldRelay,
-      sightings: envelope.payload.sightings.length,
+      kind: envelope.payload.kind || 'sightings',
+      sightings: isMeshSightingsEnvelope(envelope)
+        ? envelope.payload.sightings.length
+        : 0,
     }),
   );
 
@@ -123,12 +141,125 @@ export async function processIncomingMeshPacket({
     };
   }
 
+  if (isMeshAckEnvelope(envelope)) {
+    console.log(
+      'OFFLINK_MESH_ACK_RECEIVED',
+      JSON.stringify({
+        ackFor: envelope.payload.ackFor,
+        from: envelope.payload.senderId,
+        packetId: envelope.id,
+        ttl: envelope.ttl,
+        hopCount: envelope.hopCount,
+      }),
+    );
+
+    if (decision.shouldRelay) {
+      const relayedAck = relayPacket(envelope);
+      const didQueueAck = enqueueRelayPacket(relayedAck);
+
+      console.log(
+        'OFFLINK_MESH_ACK_RELAY',
+        JSON.stringify({
+          packetId: relayedAck.id,
+          ackFor: relayedAck.payload.ackFor,
+          origin: relayedAck.origin,
+          ttl: relayedAck.ttl,
+          hopCount: relayedAck.hopCount,
+          queued: didQueueAck,
+          queueSize: getRelayQueueSize(),
+        }),
+      );
+    }
+
+    recordGattSuccess(user.userId);
+
+    return {
+      nextSightings: null,
+      handled: true,
+    };
+  }
+
+  if (!isMeshSightingsEnvelope(envelope)) {
+    console.log('OFFLINK_MESH_PACKET_DROP', 'unknown-kind');
+    recordGattFailure(user.userId);
+
+    return {
+      nextSightings: null,
+      handled: false,
+    };
+  }
+
+  const ackEnvelope = createMeshAckEnvelope(ownUserId, envelope.id);
+  const didQueueAck = enqueueRelayPacket(ackEnvelope);
+
+  console.log(
+    'OFFLINK_MESH_ACK_CREATED',
+    JSON.stringify({
+      packetId: ackEnvelope.id,
+      ackFor: envelope.id,
+      origin: ackEnvelope.origin,
+      queued: didQueueAck,
+      queueSize: getRelayQueueSize(),
+    }),
+  );
+
+  if (didQueueAck) {
+    dispatchNextMeshPacket('ack-created').catch(error =>
+      console.log(
+        'OFFLINK_MESH_ACK_DISPATCH_ERROR',
+        String(error),
+      ),
+    );
+  }
+
   const nextSightings = mergeMeshSightings({
     currentSightings,
     incomingSightings: envelope.payload.sightings,
     ownUserId,
     seenBy: envelope.payload.senderId,
   });
+
+  envelope.payload.sightings
+    .filter(sighting => sighting.userId !== ownUserId)
+    .filter(
+      sighting =>
+        sighting.userId !== envelope.payload.senderId,
+    )
+    .forEach(sighting => {
+      const rssi = sighting.rssi ?? -85;
+      const quality = Math.max(
+        5,
+        Math.min(
+          100,
+          Math.round(((rssi + 95) / 45) * 95 + 5),
+        ),
+      );
+
+      const hops = Math.max(
+        2,
+        Math.min(8, (sighting.hops ?? 0) + 2),
+      );
+
+      MeshTopology.updateRemoteNode(
+        sighting.userId,
+        sighting.emoji || 'remote',
+        quality,
+        hops,
+        user.meshId || user.userId,
+        sighting.userId,
+      );
+
+      console.log(
+        'OFFLINK_TRANSPORT_REMOTE_ROUTE_APPLIED',
+        JSON.stringify({
+          userId: sighting.userId,
+          via: user.meshId || user.userId,
+          hops,
+          quality,
+          sourcePacket: envelope.id,
+        }),
+      );
+    });
 
   saveSightings(nextSightings);
 

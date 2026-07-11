@@ -12,7 +12,7 @@ import {
   recordRemoteRouteSkippedSelf,
   recordRemoteRouteSkippedWorse,
 } from './MeshDiagnosticsService';
-import {encodeMeshPayloadBundle} from './MeshPayloadBundleService';
+import {createCurrentMeshPayloadBundle, setCurrentTopologyPayload} from './MeshPayloadBundleService';
 
 let lastPublishAt = 0;
 let lastPublishedPayload = '';
@@ -20,6 +20,9 @@ let publishPromise: Promise<string> | null = null;
 let localMeshId: string | null = null;
 const TOPOLOGY_PUBLISH_THROTTLE_MS = 5000;
 const lastSequenceByNode: Record<string, number> = {};
+const lastTimestampByNode: Record<string, number> = {};
+
+const TOPOLOGY_RESTART_GRACE_MS = 5000;
 
 export function setLocalMeshId(meshId: string | null): void {
   localMeshId = meshId;
@@ -45,11 +48,8 @@ export async function publishLocalTopology(selfMeshId: string, force = false): P
   publishPromise = (async () => {
     const summary = createMeshTopologySummary(selfMeshId, MeshTopology.getTopology());
     const topology = encodeMeshTopologySummary(summary);
-    const encoded = encodeMeshPayloadBundle({
-      version: 1,
-      topology,
-      mesh: null,
-    });
+    setCurrentTopologyPayload(topology);
+    const encoded = createCurrentMeshPayloadBundle();
 
     await setGattPayload(encoded);
 
@@ -93,21 +93,42 @@ export function applyTopologyPayload(
   }
 
   const lastSequence = lastSequenceByNode[summary.nodeId] ?? 0;
+  const lastTimestamp = lastTimestampByNode[summary.nodeId] ?? 0;
 
-  if (summary.sequence <= lastSequence) {
+  const looksLikeRemoteRestart =
+    summary.sequence < lastSequence &&
+    summary.timestamp > lastTimestamp + TOPOLOGY_RESTART_GRACE_MS;
+
+  if (summary.sequence <= lastSequence && !looksLikeRemoteRestart) {
     console.log(
       'OFFLINK_TOPOLOGY_STALE',
       JSON.stringify({
         nodeId: summary.nodeId,
         sequence: summary.sequence,
         lastSequence,
+        timestamp: summary.timestamp,
+        lastTimestamp,
       }),
     );
 
     return true;
   }
 
+  if (looksLikeRemoteRestart) {
+    console.log(
+      'OFFLINK_TOPOLOGY_SEQUENCE_RESET_ACCEPTED',
+      JSON.stringify({
+        nodeId: summary.nodeId,
+        sequence: summary.sequence,
+        previousSequence: lastSequence,
+        timestamp: summary.timestamp,
+        previousTimestamp: lastTimestamp,
+      }),
+    );
+  }
+
   lastSequenceByNode[summary.nodeId] = summary.sequence;
+  lastTimestampByNode[summary.nodeId] = summary.timestamp;
 
   console.log('OFFLINK_TOPOLOGY_APPLY', JSON.stringify(summary));
 
