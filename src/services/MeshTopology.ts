@@ -7,7 +7,7 @@ import {
 } from './MeshDiagnosticsService';
 
 const DIRECT_NODE_TIMEOUT_MS = 45_000;
-const REMOTE_NODE_TIMEOUT_MS = 120_000;
+const REMOTE_NODE_TIMEOUT_MS = 300_000;
 const CLEANUP_INTERVAL_MS = 5_000;
 
 

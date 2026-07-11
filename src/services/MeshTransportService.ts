@@ -19,6 +19,7 @@ export type ProcessIncomingMeshPacketArgs = {
   ownUserId: string | null;
   ownMeshId: string | null;
   currentSightings: OfflinkSighting[];
+  localTopologyPayload: string;
   publishGattMesh: (nextSightings: OfflinkSighting[]) => void;
   saveSightings: (nextSightings: OfflinkSighting[]) => void;
 };
@@ -33,6 +34,7 @@ export async function processIncomingMeshPacket({
   ownUserId,
   ownMeshId,
   currentSightings,
+  localTopologyPayload,
   publishGattMesh,
   saveSightings,
 }: ProcessIncomingMeshPacketArgs): Promise<ProcessIncomingMeshPacketResult> {
@@ -61,7 +63,10 @@ export async function processIncomingMeshPacket({
     }),
   );
 
-  const gattPayloads = await readGattPayloadsFromDevice(user.deviceId);
+  const gattPayloads = await readGattPayloadsFromDevice(
+    user.deviceId,
+    localTopologyPayload,
+  );
   const topologyPayload = gattPayloads.topology;
   const meshPayload = gattPayloads.transport;
 

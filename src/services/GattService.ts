@@ -17,7 +17,12 @@ const TRANSPORT_CONTROL_CHARACTERISTIC_UUID =
 const TRANSPORT_CHUNK_CHARACTERISTIC_UUID =
   '0000caf2-0000-1000-8000-00805f9b34fb';
 
+const INBOUND_TOPOLOGY_CHARACTERISTIC_UUID =
+  '0000caf3-0000-1000-8000-00805f9b34fb';
+
 const MAX_TRANSPORT_CHUNKS = 32;
+const TOPOLOGY_UPLOAD_CHUNK_SIZE = 180;
+const GATT_REQUESTED_MTU = 247;
 
 const {OfflinkGatt} = NativeModules;
 const gattClient = new BleManager();
@@ -214,6 +219,124 @@ export async function readGattPayloadFromDevice(deviceId: string): Promise<strin
 
 
 
+function makeTransferId(): string {
+  return (
+    Date.now().toString(36) +
+    Math.random().toString(36).slice(2, 8)
+  ).toUpperCase();
+}
+
+async function uploadTopologyOnConnectedDevice(
+  device: Device,
+  topologyPayload: string,
+): Promise<void> {
+  const encoded = encodeBase64(topologyPayload);
+  const transferId = makeTransferId();
+
+  const chunks: string[] = [];
+
+  for (
+    let offset = 0;
+    offset < encoded.length;
+    offset += TOPOLOGY_UPLOAD_CHUNK_SIZE
+  ) {
+    chunks.push(
+      encoded.slice(offset, offset + TOPOLOGY_UPLOAD_CHUNK_SIZE),
+    );
+  }
+
+  for (let index = 0; index < chunks.length; index += 1) {
+    const frame =
+      `OLUP|1|${transferId}|${index}|${chunks.length}|${chunks[index]}`;
+
+    await withTimeout(
+      device.writeCharacteristicWithResponseForService(
+        SERVICE_UUID,
+        INBOUND_TOPOLOGY_CHARACTERISTIC_UUID,
+        encodeBase64(frame),
+      ),
+      6000,
+      `GATT topology upload chunk ${index}`,
+    );
+  }
+
+  console.log(
+    'OFFLINK_GATT_TOPOLOGY_UPLOADED',
+    JSON.stringify({
+      transferId,
+      chunks: chunks.length,
+      length: topologyPayload.length,
+    }),
+  );
+}
+
+export async function consumeInboundGattTopology():
+Promise<string | null> {
+  const value = await OfflinkGatt.consumeInboundTopology();
+
+  return typeof value === 'string' && value.length > 0
+    ? value
+    : null;
+}
+
+async function readTopologyWithRetry(
+  device: Device,
+  deviceId: string,
+): Promise<string> {
+  const maxAttempts = 2;
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const characteristic = await withTimeout(
+        device.readCharacteristicForService(
+          SERVICE_UUID,
+          TOPOLOGY_CHARACTERISTIC_UUID,
+        ),
+        3000,
+        `GATT topology read attempt ${attempt}`,
+      );
+
+      const topology = decodeBase64(
+        characteristic.value || '',
+      );
+
+      console.log(
+        'OFFLINK_GATT_TOPOLOGY_READ_SUCCESS',
+        JSON.stringify({
+          deviceId,
+          attempt,
+          length: topology.length,
+        }),
+      );
+
+      return topology;
+    } catch (error) {
+      lastError = error;
+
+      console.log(
+        'OFFLINK_GATT_TOPOLOGY_READ_RETRY',
+        JSON.stringify({
+          deviceId,
+          attempt,
+          maxAttempts,
+          error: String(error),
+        }),
+      );
+
+      if (attempt < maxAttempts) {
+        await new Promise(resolve =>
+          setTimeout(resolve, 350),
+        );
+      }
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(String(lastError));
+}
+
 export type OfflinkGattPayloads = {
   topology: string;
   transport: string;
@@ -221,16 +344,42 @@ export type OfflinkGattPayloads = {
 
 export async function readGattPayloadsFromDevice(
   deviceId: string,
+  localTopologyPayload?: string,
 ): Promise<OfflinkGattPayloads> {
   console.log('OFFLINK_GATT_CONNECT_START', deviceId);
 
-  const device = await withTimeout(
+  let device = await withTimeout(
     gattClient.connectToDevice(deviceId, {timeout: 8000}),
     9000,
     'GATT connect',
   );
 
   try {
+    try {
+      device = await withTimeout(
+        device.requestMTU(GATT_REQUESTED_MTU),
+        5000,
+        'GATT MTU request',
+      );
+
+      console.log(
+        'OFFLINK_GATT_MTU_READY',
+        JSON.stringify({
+          deviceId,
+          requested: GATT_REQUESTED_MTU,
+          actual: device.mtu,
+        }),
+      );
+    } catch (error) {
+      console.log(
+        'OFFLINK_GATT_MTU_REQUEST_ERROR',
+        JSON.stringify({
+          deviceId,
+          error: String(error),
+        }),
+      );
+    }
+
     console.log('OFFLINK_GATT_DISCOVER_START', deviceId);
 
     await withTimeout(
@@ -239,13 +388,9 @@ export async function readGattPayloadsFromDevice(
       'GATT discover',
     );
 
-    const topologyCharacteristic = await withTimeout(
-      device.readCharacteristicForService(
-        SERVICE_UUID,
-        TOPOLOGY_CHARACTERISTIC_UUID,
-      ),
-      6000,
-      'GATT topology read',
+    const topology = await readTopologyWithRetry(
+      device,
+      deviceId,
     );
 
     let transport = '';
@@ -342,9 +487,12 @@ export async function readGattPayloadsFromDevice(
       );
     }
 
-    const topology = decodeBase64(
-      topologyCharacteristic.value || '',
-    );
+    if (localTopologyPayload) {
+      await uploadTopologyOnConnectedDevice(
+        device,
+        localTopologyPayload,
+      );
+    }
 
     console.log(
       'OFFLINK_GATT_DUAL_READ_SUCCESS',
@@ -352,6 +500,8 @@ export async function readGattPayloadsFromDevice(
         deviceId,
         topologyLength: topology.length,
         transportLength: transport.length,
+        uploadedTopologyLength:
+          localTopologyPayload?.length ?? 0,
       }),
     );
 

@@ -16,6 +16,7 @@ import {
 } from './src/services/BleService';
 import {OfflinkLocation, watchCurrentLocation} from './src/services/LocationService';
 import {
+  consumeInboundGattTopology,
   setGattTransportPayload,
   startGattServer,
 } from './src/services/GattService';
@@ -23,7 +24,11 @@ import {createMeshPayload, stringifyMeshEnvelope} from './src/services/MeshSyncS
 import {getRelayQueueSize} from './src/services/MeshRelayQueue';
 import {dispatchNextMeshPacket} from './src/services/MeshDispatcher';
 
-import {publishLocalTopology, setLocalMeshId} from './src/services/MeshTopologyExchangeService';
+import {
+  applyTopologyPayload,
+  publishLocalTopology,
+  setLocalMeshId,
+} from './src/services/MeshTopologyExchangeService';
 import {startMeshScheduler} from './src/services/MeshScheduler';
 import {processIncomingMeshPacket} from './src/services/MeshTransportService';
 
@@ -60,6 +65,8 @@ export default function App() {
   useEffect(() => {
     let stopScan: (() => void) | null = null;
     let stopLocationWatch: (() => void) | null = null;
+    let inboundTopologyTimer:
+      ReturnType<typeof setInterval> | null = null;
     let isMounted = true;
     const staleUserTimer = setInterval(() => {
       setNearbyUsers(currentUsers => {
@@ -129,6 +136,36 @@ export default function App() {
           console.log('OFFLINK_TOPOLOGY_INITIAL_PUBLISH_ERROR', String(error)),
         );
 
+        inboundTopologyTimer = setInterval(() => {
+          consumeInboundGattTopology()
+            .then(payload => {
+              if (!payload) {
+                return;
+              }
+
+              const applied = applyTopologyPayload(
+                payload,
+                savedProfile.meshId,
+                savedProfile.userId,
+              );
+
+              console.log(
+                'OFFLINK_INBOUND_TOPOLOGY_CONSUMED',
+                JSON.stringify({
+                  applied,
+                  length: payload.length,
+                  startsWith: payload.slice(0, 24),
+                }),
+              );
+            })
+            .catch(error =>
+              console.log(
+                'OFFLINK_INBOUND_TOPOLOGY_CONSUME_ERROR',
+                String(error),
+              ),
+            );
+        }, 1000);
+
         stopScan = startMeshScheduler({
           getNearbyUsers: () => nearbyUsersRef.current,
           startScan: () =>
@@ -167,6 +204,11 @@ export default function App() {
       }
 
       clearInterval(staleUserTimer);
+
+      if (inboundTopologyTimer) {
+        clearInterval(inboundTopologyTimer);
+      }
+
       stopBleBroadcastTest().catch(() => {});
     };
   }, []);
@@ -216,10 +258,23 @@ export default function App() {
 
     const syncUser = freshestUser;
     const deviceId = freshestUser.deviceId;
+    const localMeshId = ownMeshIdRef.current;
 
-    if (!deviceId) {
+    if (!deviceId || !localMeshId) {
       return;
     }
+
+    if (localMeshId > syncUser.meshId) {
+      console.log(
+        'OFFLINK_GATT_SYNC_SKIPPED_RESPONDER_ROLE',
+        JSON.stringify({
+          ownMeshId: localMeshId,
+          peerMeshId: syncUser.meshId,
+        }),
+      );
+      return;
+    }
+
     const lastSyncAt = lastGattSyncRef.current[deviceId] || 0;
     const lastFailureAt = lastGattFailureRef.current[deviceId] || 0;
     const now = Date.now();
@@ -251,11 +306,15 @@ export default function App() {
     }));
 
     try {
+      const localTopologyPayload =
+        await publishLocalTopology(localMeshId);
+
       const result = await processIncomingMeshPacket({
         user: syncUser,
         ownUserId: ownUserIdRef.current,
-        ownMeshId: ownMeshIdRef.current,
+        ownMeshId: localMeshId,
         currentSightings: sightingsRef.current,
+        localTopologyPayload,
         publishGattMesh,
         saveSightings: nextSightings => {
           sightingsRef.current = nextSightings;

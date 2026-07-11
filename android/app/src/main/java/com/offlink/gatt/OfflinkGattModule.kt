@@ -43,6 +43,9 @@ class OfflinkGattModule(
     val TRANSPORT_CHUNK_CHARACTERISTIC_UUID: UUID =
       UUID.fromString("0000caf2-0000-1000-8000-00805f9b34fb")
 
+    val INBOUND_TOPOLOGY_CHARACTERISTIC_UUID: UUID =
+      UUID.fromString("0000caf3-0000-1000-8000-00805f9b34fb")
+
     const val TRANSPORT_CHUNK_SIZE = 384
   }
 
@@ -55,6 +58,15 @@ class OfflinkGattModule(
 
   private val transportSnapshotByDevice =
     ConcurrentHashMap<String, String>()
+
+  private val inboundTopologyChunksByTransfer =
+    ConcurrentHashMap<String, MutableMap<Int, String>>()
+
+  private val inboundTopologyChunkCounts =
+    ConcurrentHashMap<String, Int>()
+
+  @Volatile
+  private var pendingInboundTopology: String? = null
 
   override fun getName(): String = "OfflinkGatt"
 
@@ -118,6 +130,80 @@ class OfflinkGattModule(
     val end = minOf(start + TRANSPORT_CHUNK_SIZE, encoded.length)
 
     return encoded.substring(start, end)
+  }
+
+  private fun acceptInboundTopologyChunk(
+    device: BluetoothDevice?,
+    value: ByteArray?
+  ): Boolean {
+    val frame =
+      value
+        ?.toString(StandardCharsets.UTF_8)
+        ?.trim()
+        ?: return false
+
+    val parts = frame.split("|", limit = 6)
+
+    if (
+      parts.size != 6 ||
+      parts[0] != "OLUP" ||
+      parts[1] != "1" ||
+      parts[2].isBlank()
+    ) {
+      return false
+    }
+
+    val transferId = parts[2]
+    val chunkIndex = parts[3].toIntOrNull() ?: return false
+    val chunkCount = parts[4].toIntOrNull() ?: return false
+    val chunk = parts[5]
+
+    if (
+      chunkIndex < 0 ||
+      chunkCount <= 0 ||
+      chunkIndex >= chunkCount ||
+      chunkCount > 64
+    ) {
+      return false
+    }
+
+    val deviceKey = device?.address ?: "unknown"
+    val transferKey = "$deviceKey:$transferId"
+
+    val chunks =
+      inboundTopologyChunksByTransfer.getOrPut(transferKey) {
+        ConcurrentHashMap<Int, String>()
+      }
+
+    inboundTopologyChunkCounts[transferKey] = chunkCount
+    chunks[chunkIndex] = chunk
+
+    if (chunks.size != chunkCount) {
+      return true
+    }
+
+    val encoded = buildString {
+      for (index in 0 until chunkCount) {
+        val nextChunk = chunks[index] ?: return false
+        append(nextChunk)
+      }
+    }
+
+    return try {
+      val decodedBytes = Base64.decode(encoded, Base64.NO_WRAP)
+
+      pendingInboundTopology =
+        decodedBytes.toString(StandardCharsets.UTF_8)
+
+      inboundTopologyChunksByTransfer.remove(transferKey)
+      inboundTopologyChunkCounts.remove(transferKey)
+
+      true
+    } catch (_: IllegalArgumentException) {
+      inboundTopologyChunksByTransfer.remove(transferKey)
+      inboundTopologyChunkCounts.remove(transferKey)
+      false
+    }
   }
 
   private fun sendReadResponse(
@@ -236,49 +322,40 @@ class OfflinkGattModule(
           offset: Int,
           value: ByteArray?
         ) {
-          if (
-            characteristic?.uuid !=
-              TRANSPORT_CONTROL_CHARACTERISTIC_UUID
-          ) {
-            if (responseNeeded) {
-              gattServer?.sendResponse(
-                device,
-                requestId,
-                BluetoothGatt.GATT_FAILURE,
-                offset,
-                null
-              )
+          val success =
+            when (characteristic?.uuid) {
+              TRANSPORT_CONTROL_CHARACTERISTIC_UUID -> {
+                val requestedIndex =
+                  value
+                    ?.toString(StandardCharsets.UTF_8)
+                    ?.trim()
+                    ?.toIntOrNull()
+
+                if (requestedIndex == null || requestedIndex < 0) {
+                  false
+                } else {
+                  val deviceKey = device?.address ?: "unknown"
+                  requestedChunkByDevice[deviceKey] = requestedIndex
+                  true
+                }
+              }
+
+              INBOUND_TOPOLOGY_CHARACTERISTIC_UUID -> {
+                acceptInboundTopologyChunk(device, value)
+              }
+
+              else -> false
             }
-            return
-          }
-
-          val requestedIndex =
-            value
-              ?.toString(StandardCharsets.UTF_8)
-              ?.trim()
-              ?.toIntOrNull()
-
-          if (requestedIndex == null || requestedIndex < 0) {
-            if (responseNeeded) {
-              gattServer?.sendResponse(
-                device,
-                requestId,
-                BluetoothGatt.GATT_FAILURE,
-                offset,
-                null
-              )
-            }
-            return
-          }
-
-          val deviceKey = device?.address ?: "unknown"
-          requestedChunkByDevice[deviceKey] = requestedIndex
 
           if (responseNeeded) {
             gattServer?.sendResponse(
               device,
               requestId,
-              BluetoothGatt.GATT_SUCCESS,
+              if (success) {
+                BluetoothGatt.GATT_SUCCESS
+              } else {
+                BluetoothGatt.GATT_FAILURE
+              },
               offset,
               value
             )
@@ -328,10 +405,18 @@ class OfflinkGattModule(
         BluetoothGattCharacteristic.PERMISSION_READ
       )
 
+    val inboundTopologyCharacteristic =
+      BluetoothGattCharacteristic(
+        INBOUND_TOPOLOGY_CHARACTERISTIC_UUID,
+        BluetoothGattCharacteristic.PROPERTY_WRITE,
+        BluetoothGattCharacteristic.PERMISSION_WRITE
+      )
+
     service.addCharacteristic(topologyCharacteristic)
     service.addCharacteristic(transportMetaCharacteristic)
     service.addCharacteristic(transportControlCharacteristic)
     service.addCharacteristic(transportChunkCharacteristic)
+    service.addCharacteristic(inboundTopologyCharacteristic)
 
     val added = gattServer?.addService(service) ?: false
 
@@ -366,6 +451,13 @@ class OfflinkGattModule(
     promise.resolve(true)
   }
 
+  @ReactMethod
+  fun consumeInboundTopology(promise: Promise) {
+    val value = pendingInboundTopology
+    pendingInboundTopology = null
+    promise.resolve(value)
+  }
+
   @SuppressLint("MissingPermission")
   @ReactMethod
   fun stopServer(promise: Promise) {
@@ -381,6 +473,9 @@ class OfflinkGattModule(
     gattServer = null
     requestedChunkByDevice.clear()
     transportSnapshotByDevice.clear()
+    inboundTopologyChunksByTransfer.clear()
+    inboundTopologyChunkCounts.clear()
+    pendingInboundTopology = null
 
     promise.resolve(true)
   }
