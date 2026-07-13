@@ -22,6 +22,17 @@ export type NearbyOfflinkUser = {
   accuracy?: number;
 };
 
+export type FriendLocationRecord = {
+  userId: string;
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  timestamp: number;
+  sequence: number;
+  sourceNodeId: string;
+  hops: number;
+};
+
 export type OfflinkSighting = {
   userId: string;
   emoji: string;

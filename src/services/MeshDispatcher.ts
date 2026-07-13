@@ -10,10 +10,32 @@ import {
 const MIN_RELAY_DELAY_MS = 100;
 const MAX_RELAY_DELAY_MS = 500;
 const MIN_DISPATCH_INTERVAL_MS = 750;
+const TRANSPORT_PAYLOAD_LEASE_MS = 12000;
 
 let lastDispatchAt = 0;
 let dispatchInFlight = false;
 let scheduledDispatch: ReturnType<typeof setTimeout> | null = null;
+let transportPayloadLeaseUntil = 0;
+let transportPayloadKind: string | null = null;
+
+export function isMeshTransportPayloadLeased(): boolean {
+  return Date.now() < transportPayloadLeaseUntil;
+}
+
+export function getMeshTransportPayloadLease(): {
+  active: boolean;
+  kind: string | null;
+  remainingMs: number;
+} {
+  return {
+    active: isMeshTransportPayloadLeased(),
+    kind: transportPayloadKind,
+    remainingMs: Math.max(
+      0,
+      transportPayloadLeaseUntil - Date.now(),
+    ),
+  };
+}
 
 function getRandomRelayDelay(): number {
   return (
@@ -56,6 +78,7 @@ async function runScheduledDispatch(reason: string): Promise<boolean> {
         origin: nextPacket.origin,
         ttl: nextPacket.ttl,
         hopCount: nextPacket.hopCount,
+        kind: nextPacket.payload.kind || 'sightings',
         remaining: getRelayQueueSize(),
       }),
     );
@@ -63,6 +86,22 @@ async function runScheduledDispatch(reason: string): Promise<boolean> {
     await setGattTransportPayload(
       stringifyMeshEnvelope(nextPacket),
     );
+
+    transportPayloadKind =
+      nextPacket.payload.kind || 'sightings';
+    transportPayloadLeaseUntil =
+      Date.now() + TRANSPORT_PAYLOAD_LEASE_MS;
+
+    console.log(
+      'OFFLINK_MESH_TRANSPORT_LEASE_STARTED',
+      JSON.stringify({
+        packetId: nextPacket.id,
+        kind: transportPayloadKind,
+        leaseMs: TRANSPORT_PAYLOAD_LEASE_MS,
+        leaseUntil: transportPayloadLeaseUntil,
+      }),
+    );
+
     recordMeshPacketRelayed(nextPacket);
     return true;
   } finally {

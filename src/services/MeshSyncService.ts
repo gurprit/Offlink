@@ -1,4 +1,4 @@
-import {OfflinkSighting} from '../models/types';
+import {FriendLocationRecord, OfflinkSighting} from '../models/types';
 import {MeshPacket, createMeshPacket} from './MeshEngine';
 
 export type OfflinkMeshSightingsPayload = {
@@ -7,6 +7,14 @@ export type OfflinkMeshSightingsPayload = {
   senderId: string;
   createdAt: number;
   sightings: OfflinkSighting[];
+};
+
+export type OfflinkMeshFriendLocationsPayload = {
+  v: 1;
+  kind: 'friend_locations';
+  senderId: string;
+  createdAt: number;
+  locations: FriendLocationRecord[];
 };
 
 export type OfflinkMeshAckPayload = {
@@ -19,6 +27,7 @@ export type OfflinkMeshAckPayload = {
 
 export type OfflinkMeshPayload =
   | OfflinkMeshSightingsPayload
+  | OfflinkMeshFriendLocationsPayload
   | OfflinkMeshAckPayload;
 
 export type OfflinkMeshEnvelope = MeshPacket<OfflinkMeshPayload>;
@@ -46,6 +55,41 @@ export function createMeshPayload(
   return JSON.stringify(createMeshPacket(senderId, payload));
 }
 
+export function createFriendLocationsEnvelope(
+  senderId: string,
+  locations: FriendLocationRecord[],
+): OfflinkMeshEnvelope {
+  const freshLocations = locations
+    .filter(location => typeof location.latitude === 'number')
+    .filter(location => typeof location.longitude === 'number')
+    .filter(location => Date.now() - location.timestamp < 1000 * 60 * 60)
+    .sort((a, b) => {
+      if (b.timestamp !== a.timestamp) {
+        return b.timestamp - a.timestamp;
+      }
+
+      return b.sequence - a.sequence;
+    })
+    .slice(0, 25);
+
+  return createMeshPacket(senderId, {
+    v: 1,
+    kind: 'friend_locations',
+    senderId,
+    createdAt: Date.now(),
+    locations: freshLocations,
+  });
+}
+
+export function createFriendLocationsPayload(
+  senderId: string,
+  locations: FriendLocationRecord[],
+): string {
+  return JSON.stringify(
+    createFriendLocationsEnvelope(senderId, locations),
+  );
+}
+
 export function parseMeshPayload(input: string): OfflinkMeshEnvelope | null {
   try {
     const parsed = JSON.parse(input) as OfflinkMeshEnvelope | OfflinkMeshPayload;
@@ -69,6 +113,13 @@ export function parseMeshPayload(input: string): OfflinkMeshEnvelope | null {
       if (
         (!parsed.payload.kind || parsed.payload.kind === 'sightings') &&
         Array.isArray(parsed.payload.sightings)
+      ) {
+        return parsed;
+      }
+
+      if (
+        parsed.payload.kind === 'friend_locations' &&
+        Array.isArray(parsed.payload.locations)
       ) {
         return parsed;
       }
@@ -116,6 +167,12 @@ export function isMeshSightingsEnvelope(
   envelope: OfflinkMeshEnvelope,
 ): envelope is MeshPacket<OfflinkMeshSightingsPayload> {
   return !envelope.payload.kind || envelope.payload.kind === 'sightings';
+}
+
+export function isMeshFriendLocationsEnvelope(
+  envelope: OfflinkMeshEnvelope,
+): envelope is MeshPacket<OfflinkMeshFriendLocationsPayload> {
+  return envelope.payload.kind === 'friend_locations';
 }
 
 export function stringifyMeshEnvelope(

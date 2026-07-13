@@ -15,14 +15,26 @@ import {
   stopBleBroadcastTest,
 } from './src/services/BleService';
 import {OfflinkLocation, watchCurrentLocation} from './src/services/LocationService';
+import {updateOwnLocation} from './src/services/FriendLocationService';
 import {
   consumeInboundGattTopology,
   setGattTransportPayload,
   startGattServer,
 } from './src/services/GattService';
-import {createMeshPayload, stringifyMeshEnvelope} from './src/services/MeshSyncService';
-import {getRelayQueueSize} from './src/services/MeshRelayQueue';
-import {dispatchNextMeshPacket} from './src/services/MeshDispatcher';
+import {
+  createFriendLocationsEnvelope,
+  createMeshPayload,
+  stringifyMeshEnvelope,
+} from './src/services/MeshSyncService';
+import {
+  enqueueRelayPacket,
+  getRelayQueueSize,
+} from './src/services/MeshRelayQueue';
+import {
+  dispatchNextMeshPacket,
+  getMeshTransportPayloadLease,
+  isMeshTransportPayloadLeased,
+} from './src/services/MeshDispatcher';
 
 import {
   applyTopologyPayload,
@@ -61,6 +73,7 @@ export default function App() {
   const syncInFlightRef = useRef<Set<string>>(new Set());
   const lastGattSyncRef = useRef<Record<string, number>>({});
   const lastGattFailureRef = useRef<Record<string, number>>({});
+  const lastOwnLocationPublishAtRef = useRef(0);
 
   useEffect(() => {
     let stopScan: (() => void) | null = null;
@@ -119,6 +132,53 @@ export default function App() {
           location => {
             currentLocationRef.current = location;
             setCurrentLocation(location);
+
+            const ownLocationRecord = updateOwnLocation({
+              userId: savedProfile.userId,
+              meshId: savedProfile.meshId,
+              location,
+            });
+
+            const now = Date.now();
+
+            if (
+              ownLocationRecord &&
+              now - lastOwnLocationPublishAtRef.current >= 10000
+            ) {
+              const locationEnvelope =
+                createFriendLocationsEnvelope(
+                  savedProfile.userId,
+                  [ownLocationRecord],
+                );
+
+              const didQueueLocation =
+                enqueueRelayPacket(locationEnvelope);
+
+              if (didQueueLocation) {
+                lastOwnLocationPublishAtRef.current = now;
+
+                console.log(
+                  'OFFLINK_FRIEND_LOCATION_PACKET_QUEUED',
+                  JSON.stringify({
+                    packetId: locationEnvelope.id,
+                    userId: ownLocationRecord.userId,
+                    sequence: ownLocationRecord.sequence,
+                    timestamp: ownLocationRecord.timestamp,
+                    queueSize: getRelayQueueSize(),
+                  }),
+                );
+
+                dispatchNextMeshPacket(
+                  'own-location-updated',
+                ).catch(error =>
+                  console.log(
+                    'OFFLINK_FRIEND_LOCATION_DISPATCH_ERROR',
+                    String(error),
+                  ),
+                );
+              }
+            }
+
             startBleBroadcast(savedProfile, location).catch(error =>
               console.log('OFFLINK_BROADCAST_LOCATION_ERROR', error),
             );
@@ -227,11 +287,27 @@ export default function App() {
       return;
     }
 
-    setGattTransportPayload(
-      createMeshPayload(userId, nextSightings),
-    ).catch(error =>
-      console.log('OFFLINK_MESH_TRANSPORT_PUBLISH_ERROR', String(error)),
-    );
+    if (isMeshTransportPayloadLeased()) {
+      const lease = getMeshTransportPayloadLease();
+
+      console.log(
+        'OFFLINK_SIGHTINGS_PUBLISH_DEFERRED',
+        JSON.stringify({
+          activeKind: lease.kind,
+          remainingMs: lease.remainingMs,
+          sightings: nextSightings.length,
+        }),
+      );
+    } else {
+      setGattTransportPayload(
+        createMeshPayload(userId, nextSightings),
+      ).catch(error =>
+        console.log(
+          'OFFLINK_MESH_TRANSPORT_PUBLISH_ERROR',
+          String(error),
+        ),
+      );
+    }
 
     publishLocalTopology(meshId).catch(error =>
       console.log('OFFLINK_TOPOLOGY_PUBLISH_ERROR', String(error)),

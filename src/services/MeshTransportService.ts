@@ -3,6 +3,7 @@ import {readGattPayloadsFromDevice} from './GattService';
 import {
   createMeshAckEnvelope,
   isMeshAckEnvelope,
+  isMeshFriendLocationsEnvelope,
   isMeshSightingsEnvelope,
   mergeMeshSightings,
   parseMeshPayload,
@@ -13,6 +14,7 @@ import {dispatchNextMeshPacket} from './MeshDispatcher';
 import MeshTopology from './MeshTopology';
 import {recordGattFailure, recordGattSuccess} from './MeshNeighbourReliability';
 import {applyTopologyPayload, publishLocalTopology} from './MeshTopologyExchangeService';
+import {applyFriendLocation} from './FriendLocationService';
 
 export type ProcessIncomingMeshPacketArgs = {
   user: NearbyOfflinkUser;
@@ -171,6 +173,112 @@ export async function processIncomingMeshPacket({
           ttl: relayedAck.ttl,
           hopCount: relayedAck.hopCount,
           queued: didQueueAck,
+          queueSize: getRelayQueueSize(),
+        }),
+      );
+    }
+
+    recordGattSuccess(user.userId);
+
+    return {
+      nextSightings: null,
+      handled: true,
+    };
+  }
+
+  if (isMeshFriendLocationsEnvelope(envelope)) {
+    const ackEnvelope = createMeshAckEnvelope(
+      ownUserId,
+      envelope.id,
+    );
+    const didQueueAck = enqueueRelayPacket(ackEnvelope);
+
+    console.log(
+      'OFFLINK_MESH_ACK_CREATED',
+      JSON.stringify({
+        packetId: ackEnvelope.id,
+        ackFor: envelope.id,
+        origin: ackEnvelope.origin,
+        queued: didQueueAck,
+        queueSize: getRelayQueueSize(),
+        kind: 'friend_locations',
+      }),
+    );
+
+    if (didQueueAck) {
+      dispatchNextMeshPacket(
+        'friend-location-ack-created',
+      ).catch(error =>
+        console.log(
+          'OFFLINK_MESH_ACK_DISPATCH_ERROR',
+          String(error),
+        ),
+      );
+    }
+
+    let stored = 0;
+    let updated = 0;
+    let ignored = 0;
+    let invalid = 0;
+
+    envelope.payload.locations.forEach(location => {
+      if (location.userId === ownUserId) {
+        ignored += 1;
+        return;
+      }
+
+      const result = applyFriendLocation({
+        ...location,
+        hops: Math.min(
+          10,
+          Math.max(
+            location.hops ?? 0,
+            envelope.hopCount + 1,
+          ),
+        ),
+      });
+
+      if (result === 'stored') {
+        stored += 1;
+      } else if (result === 'updated') {
+        updated += 1;
+      } else if (result === 'invalid') {
+        invalid += 1;
+      } else {
+        ignored += 1;
+      }
+    });
+
+    console.log(
+      'OFFLINK_FRIEND_LOCATIONS_RECEIVED',
+      JSON.stringify({
+        packetId: envelope.id,
+        origin: envelope.origin,
+        senderId: envelope.payload.senderId,
+        receivedFrom: user.userId,
+        count: envelope.payload.locations.length,
+        stored,
+        updated,
+        ignored,
+        invalid,
+        hopCount: envelope.hopCount,
+        ttl: envelope.ttl,
+      }),
+    );
+
+    if (decision.shouldRelay) {
+      const relayedEnvelope = relayPacket(envelope);
+      const didQueueRelay =
+        enqueueRelayPacket(relayedEnvelope);
+
+      console.log(
+        'OFFLINK_FRIEND_LOCATION_PACKET_RELAY',
+        JSON.stringify({
+          packetId: relayedEnvelope.id,
+          origin: relayedEnvelope.origin,
+          ttl: relayedEnvelope.ttl,
+          hopCount: relayedEnvelope.hopCount,
+          queued: didQueueRelay,
           queueSize: getRelayQueueSize(),
         }),
       );
