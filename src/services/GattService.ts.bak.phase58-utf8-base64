@@ -49,47 +49,10 @@ function withTimeout<T>(
   });
 }
 
-function stringToUtf8Bytes(value: string): number[] {
-  const encoded = encodeURIComponent(value);
-  const bytes: number[] = [];
-
-  for (let index = 0; index < encoded.length; index += 1) {
-    const character = encoded[index];
-
-    if (character === '%') {
-      bytes.push(
-        Number.parseInt(encoded.slice(index + 1, index + 3), 16),
-      );
-      index += 2;
-      continue;
-    }
-
-    bytes.push(character.charCodeAt(0));
-  }
-
-  return bytes;
-}
-
-function utf8BytesToString(bytes: number[]): string {
-  const encoded = bytes
-    .map(byte => `%${byte.toString(16).padStart(2, '0')}`)
-    .join('');
-
-  try {
-    return decodeURIComponent(encoded);
-  } catch {
-    /*
-     * Keep malformed legacy payloads readable rather than rejecting the
-     * entire GATT exchange.
-     */
-    return bytes
-      .map(byte => String.fromCharCode(byte))
-      .join('');
-  }
-}
-
 function encodeBase64(value: string): string {
-  const bytes = stringToUtf8Bytes(value);
+  const bytes = Array.from(value).map(character =>
+    character.charCodeAt(0),
+  );
 
   const chars =
     'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -122,32 +85,29 @@ function encodeBase64(value: string): string {
 }
 
 function decodeBase64(value: string): string {
-  const chars =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-
-  const bytes: number[] = [];
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  let output = '';
   let buffer = 0;
   let bits = 0;
 
-  for (const character of value.replace(/=+$/, '')) {
-    const characterIndex = chars.indexOf(character);
+  for (const char of value.replace(/=+$/, '')) {
+    const index = chars.indexOf(char);
 
-    if (characterIndex < 0) {
+    if (index < 0) {
       continue;
     }
 
-    buffer = (buffer << 6) | characterIndex;
+    buffer = (buffer << 6) | index;
     bits += 6;
 
     if (bits >= 8) {
       bits -= 8;
-      bytes.push((buffer >> bits) & 0xff);
+      output += String.fromCharCode((buffer >> bits) & 0xff);
     }
   }
 
-  return utf8BytesToString(bytes);
+  return output;
 }
-
 
 export async function startGattServer(payload = 'Hello from Offlink GATT'): Promise<void> {
   await OfflinkGatt.startServer(payload);

@@ -17,9 +17,6 @@ const DIRECT_ROUTE_ACTIVE_MS = 25_000;
 const DIRECT_ROUTE_RETENTION_MS = 60_000;
 const REMOTE_ROUTE_TIMEOUT_MS = 300_000;
 const CLEANUP_INTERVAL_MS = 5_000;
-
-const lastRouteDecisionSignatureByDestination =
-  new Map<string, string>();
 const REMOTE_ROUTE_SWITCH_THRESHOLD = 8;
 const MAX_REMOTE_REPORTED_QUALITY = 92;
 
@@ -28,9 +25,6 @@ const MAX_NORMAL_REMOTE_HOPS = 4;
 
 const MIN_EMERGENCY_REMOTE_QUALITY = 15;
 const MAX_EMERGENCY_REMOTE_HOPS = 6;
-
-const REMOTE_ROUTE_MIN_DWELL_MS = 10_000;
-const REMOTE_ROUTE_BREAKAWAY_THRESHOLD = 18;
 
 type RouteKind = 'direct' | 'remote';
 
@@ -71,9 +65,6 @@ class MeshTopologyStore {
   private selfMeshId: string | null = null;
   private selectedRouteKeyByDestination =
     new Map<string, string>();
-
-  private selectedRouteChangedAtByDestination =
-    new Map<string, number>();
 
   setSelfMeshId(meshId: string | null) {
     this.selfMeshId = meshId;
@@ -349,8 +340,6 @@ class MeshTopologyStore {
   clear() {
     this.routeCandidates.clear();
     this.selectedRouteKeyByDestination.clear();
-    this.selectedRouteChangedAtByDestination.clear();
-    lastRouteDecisionSignatureByDestination.clear();
     this.notify();
   }
 
@@ -362,11 +351,6 @@ class MeshTopologyStore {
       this.selectedRouteKeyByDestination.delete(
         destinationId,
       );
-
-      this.selectedRouteChangedAtByDestination.delete(
-        destinationId,
-      );
-
       return;
     }
 
@@ -387,11 +371,6 @@ class MeshTopologyStore {
     this.selectedRouteKeyByDestination.set(
       destinationId,
       selectedKey,
-    );
-
-    this.selectedRouteChangedAtByDestination.set(
-      destinationId,
-      Date.now(),
     );
 
     if (
@@ -433,144 +412,6 @@ class MeshTopologyStore {
     return created;
   }
 
-  private logRouteDecision({
-    destinationId,
-    now,
-    candidates,
-    selected,
-    reason,
-    previousRouteKey,
-    hysteresisHeld = false,
-  }: {
-    destinationId: string;
-    now: number;
-    candidates: MeshRouteCandidate[];
-    selected: MeshRouteCandidate | null;
-    reason: string;
-    previousRouteKey?: string;
-    hysteresisHeld?: boolean;
-  }) {
-    const summariseCandidate = (
-      candidate: MeshRouteCandidate | undefined,
-    ) => {
-      if (!candidate) {
-        return null;
-      }
-
-      return {
-        kind: candidate.routeKind,
-        via: candidate.via,
-        quality: candidate.quality,
-        hops: candidate.hops,
-        ageMs: Math.max(0, now - candidate.lastSeen),
-        score:
-          candidate.routeScore ??
-          candidate.quality,
-      };
-    };
-
-    const directCandidate = candidates
-      .filter(candidate => candidate.routeKind === 'direct')
-      .sort((a, b) => {
-        return (
-          (b.routeScore ?? b.quality) -
-          (a.routeScore ?? a.quality)
-        );
-      })[0];
-
-    const normalRemoteCandidate = candidates
-      .filter(candidate => {
-        return (
-          candidate.routeKind === 'remote' &&
-          candidate.quality >= MIN_NORMAL_REMOTE_QUALITY &&
-          candidate.hops <= MAX_NORMAL_REMOTE_HOPS
-        );
-      })
-      .sort((a, b) => {
-        return (
-          (b.routeScore ?? b.quality) -
-          (a.routeScore ?? a.quality)
-        );
-      })[0];
-
-    const emergencyRemoteCandidate = candidates
-      .filter(candidate => {
-        return (
-          candidate.routeKind === 'remote' &&
-          candidate.quality >= MIN_EMERGENCY_REMOTE_QUALITY &&
-          candidate.hops <= MAX_EMERGENCY_REMOTE_HOPS
-        );
-      })
-      .sort((a, b) => {
-        return (
-          (b.routeScore ?? b.quality) -
-          (a.routeScore ?? a.quality)
-        );
-      })[0];
-
-    const selectedSummary = summariseCandidate(
-      selected ?? undefined,
-    );
-
-    const payload = {
-      destinationId,
-      previousRoute: previousRouteKey ?? null,
-      selectedRoute: selected
-        ? getRouteKey(
-            selected.routeKind,
-            selected.via,
-          )
-        : null,
-      selected: selectedSummary,
-      direct: summariseCandidate(directCandidate),
-      bestNormalRemote:
-        summariseCandidate(normalRemoteCandidate),
-      bestEmergencyRemote:
-        summariseCandidate(emergencyRemoteCandidate),
-      hysteresisHeld,
-      reason,
-    };
-
-    /*
-     * Keep the printed payload detailed, but deduplicate using only
-     * meaningful routing state. Candidate ages and continuously changing
-     * scores should not produce a new log line every second.
-     */
-    const signature = JSON.stringify({
-      destinationId,
-      previousRoute: previousRouteKey ?? null,
-      selectedRoute: payload.selectedRoute,
-      selectedKind: selected?.routeKind ?? null,
-      selectedVia: selected?.via ?? null,
-      directAvailable: Boolean(directCandidate),
-      bestNormalRemoteVia:
-        normalRemoteCandidate?.via ?? null,
-      bestEmergencyRemoteVia:
-        emergencyRemoteCandidate?.via ?? null,
-      hysteresisHeld,
-      reason,
-    });
-
-    const previousSignature =
-      lastRouteDecisionSignatureByDestination.get(
-        destinationId,
-      );
-
-    if (previousSignature === signature) {
-      return;
-    }
-
-    lastRouteDecisionSignatureByDestination.set(
-      destinationId,
-      signature,
-    );
-
-    console.log(
-      'OFFLINK_ROUTE_DECISION',
-      JSON.stringify(payload),
-    );
-  }
-
   private selectBestRoute(
     id: string,
     now = Date.now(),
@@ -578,14 +419,6 @@ class MeshTopologyStore {
     const candidates = this.routeCandidates.get(id);
 
     if (!candidates || candidates.size === 0) {
-      this.logRouteDecision({
-        destinationId: id,
-        now,
-        candidates: [],
-        selected: null,
-        reason: 'no route candidates known',
-      });
-
       return null;
     }
 
@@ -665,16 +498,6 @@ class MeshTopologyStore {
         }),
       );
 
-      this.logRouteDecision({
-        destinationId: id,
-        now,
-        candidates: scoredCandidates,
-        selected: null,
-        reason: 'no candidate passed route viability thresholds',
-        previousRouteKey:
-          this.selectedRouteKeyByDestination.get(id),
-      });
-
       return null;
     }
 
@@ -688,16 +511,6 @@ class MeshTopologyStore {
     );
 
     if (freshDirect) {
-      this.logRouteDecision({
-        destinationId: id,
-        now,
-        candidates: scoredCandidates,
-        selected: freshDirect,
-        reason: 'fresh direct BLE route preferred over relays',
-        previousRouteKey:
-          this.selectedRouteKeyByDestination.get(id),
-      });
-
       return freshDirect;
     }
 
@@ -769,75 +582,15 @@ class MeshTopologyStore {
           previousCandidate.routeScore ??
           previousCandidate.quality;
 
-        const selectedAt =
-          this.selectedRouteChangedAtByDestination.get(id) ??
-          0;
-
-        const selectedAgeMs = Math.max(
-          0,
-          now - selectedAt,
-        );
-
-        const requiredImprovement =
-          selectedAgeMs < REMOTE_ROUTE_MIN_DWELL_MS
-            ? REMOTE_ROUTE_BREAKAWAY_THRESHOLD
-            : REMOTE_ROUTE_SWITCH_THRESHOLD;
-
         if (
           bestScore <
-          previousScore + requiredImprovement
+          previousScore +
+            REMOTE_ROUTE_SWITCH_THRESHOLD
         ) {
-          if (
-            getRouteKey(
-              bestCandidate.routeKind,
-              bestCandidate.via,
-            ) !== previousRouteKey
-          ) {
-            console.log(
-              'OFFLINK_REMOTE_ROUTE_SWITCH_HELD',
-              JSON.stringify({
-                destinationId: id,
-                currentVia: previousCandidate.via,
-                challengerVia: bestCandidate.via,
-                currentScore: previousScore,
-                challengerScore: bestScore,
-                selectedAgeMs,
-                requiredImprovement,
-              }),
-            );
-          }
-
-          this.logRouteDecision({
-            destinationId: id,
-            now,
-            candidates: scoredCandidates,
-            selected: previousCandidate,
-            reason:
-              'current remote route held by hysteresis; challenger improvement was too small',
-            previousRouteKey,
-            hysteresisHeld: true,
-          });
-
           return previousCandidate;
         }
       }
     }
-
-    this.logRouteDecision({
-      destinationId: id,
-      now,
-      candidates: scoredCandidates,
-      selected: bestCandidate,
-      reason:
-        bestCandidate.routeKind === 'remote' &&
-        (
-          bestCandidate.quality < MIN_NORMAL_REMOTE_QUALITY ||
-          bestCandidate.hops > MAX_NORMAL_REMOTE_HOPS
-        )
-          ? 'emergency remote fallback selected'
-          : 'highest-scoring viable remote route selected',
-      previousRouteKey,
-    });
 
     return bestCandidate;
   }

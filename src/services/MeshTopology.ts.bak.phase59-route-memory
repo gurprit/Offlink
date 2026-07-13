@@ -1,0 +1,490 @@
+import {MeshNode} from '../models/MeshNode';
+import {
+  recordRemoteRouteApplied,
+  recordRemoteRouteSkippedDirect,
+  recordRemoteRouteSkippedSelf,
+  recordRemoteRouteSkippedWorse,
+} from './MeshDiagnosticsService';
+
+const DIRECT_ROUTE_ACTIVE_MS = 15_000;
+const DIRECT_ROUTE_RETENTION_MS = 45_000;
+const REMOTE_ROUTE_TIMEOUT_MS = 300_000;
+const CLEANUP_INTERVAL_MS = 5_000;
+
+type RouteKind = 'direct' | 'remote';
+
+interface MeshRouteCandidate extends MeshNode {
+  routeKind: RouteKind;
+}
+
+function calculateRouteScore({
+  quality,
+  hops,
+  connected,
+  ageMs,
+}: {
+  quality: number;
+  hops: number;
+  connected: boolean;
+  ageMs: number;
+}): number {
+  const hopPenalty = Math.max(0, hops - 1) * 18;
+  const directBonus = connected ? 12 : 0;
+  const agePenalty = Math.min(35, Math.floor(ageMs / 5000) * 5);
+
+  return Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(quality + directBonus - hopPenalty - agePenalty),
+    ),
+  );
+}
+
+function calculateQuality(rssi: number): number {
+  if (rssi >= -50) {
+    return 100;
+  }
+
+  if (rssi <= -95) {
+    return 5;
+  }
+
+  return Math.round(((rssi + 95) / 45) * 95 + 5);
+}
+
+function getRouteKey(kind: RouteKind, via: string | null): string {
+  return kind === 'direct' ? 'direct' : `remote:${via ?? 'unknown'}`;
+}
+
+class MeshTopologyStore {
+  /**
+   * Destination ID -> candidate route key -> candidate route.
+   *
+   * A destination can therefore retain:
+   * - one direct BLE candidate
+   * - one remote candidate per relay node
+   */
+  private routeCandidates = new Map<
+    string,
+    Map<string, MeshRouteCandidate>
+  >();
+
+  private listeners = new Set<() => void>();
+  private selfMeshId: string | null = null;
+
+  setSelfMeshId(meshId: string | null) {
+    this.selfMeshId = meshId;
+    this.removeSelfRoutes();
+  }
+
+  updateNode(
+    id: string,
+    name: string,
+    rssi: number,
+    hops = 1,
+    via: string | null = null,
+    userId?: string,
+  ) {
+    if (this.isSelfRoute(id, via)) {
+      recordRemoteRouteSkippedSelf();
+      recordRemoteRouteSkippedDirect();
+      return;
+    }
+
+    const now = Date.now();
+    const routeKey = getRouteKey('direct', null);
+    const candidates = this.getOrCreateCandidates(id);
+    const existing = candidates.get(routeKey);
+
+    const quality = calculateQuality(rssi);
+    const routeScore = calculateRouteScore({
+      quality,
+      hops: 1,
+      connected: true,
+      ageMs: 0,
+    });
+
+    candidates.set(routeKey, {
+      ...(existing ?? {}),
+      id,
+      userId: userId ?? existing?.userId,
+      name,
+      rssi,
+      quality,
+      routeScore,
+      routeReason: 'fresh direct BLE route',
+      firstSeen: existing?.firstSeen ?? now,
+      lastSeen: now,
+      lastUpdated: now,
+      hops: 1,
+      via: null,
+      discoveredVia: 'direct',
+      connected: true,
+      routeKind: 'direct',
+    });
+
+    console.log(
+      'OFFLINK_ADAPTIVE_DIRECT_CANDIDATE',
+      JSON.stringify({
+        id,
+        quality,
+        routeScore,
+      }),
+    );
+
+    this.notify();
+  }
+
+  updateRemoteNode(
+    id: string,
+    name: string,
+    quality: number,
+    hops: number,
+    via: string,
+    userId?: string,
+  ) {
+    if (this.isSelfRoute(id, via) || id === via) {
+      recordRemoteRouteSkippedSelf();
+      return;
+    }
+
+    const now = Date.now();
+    const safeQuality = Math.max(0, Math.min(100, Math.round(quality)));
+    const safeHops = Math.max(2, Math.round(hops));
+    const estimatedRssi = Math.round(-95 + (safeQuality / 100) * 45);
+
+    const routeKey = getRouteKey('remote', via);
+    const candidates = this.getOrCreateCandidates(id);
+    const existing = candidates.get(routeKey);
+
+    const routeScore = calculateRouteScore({
+      quality: safeQuality,
+      hops: safeHops,
+      connected: false,
+      ageMs: 0,
+    });
+
+    candidates.set(routeKey, {
+      ...(existing ?? {}),
+      id,
+      userId: userId ?? existing?.userId,
+      name,
+      rssi: estimatedRssi,
+      quality: safeQuality,
+      routeScore,
+      routeReason: `remote candidate via ${via}`,
+      firstSeen: existing?.firstSeen ?? now,
+      lastSeen: now,
+      lastUpdated: now,
+      hops: safeHops,
+      via,
+      discoveredVia: `via ${via}`,
+      connected: false,
+      routeKind: 'remote',
+    });
+
+    recordRemoteRouteApplied();
+
+    const selected = this.selectBestRoute(id, now);
+
+    if (
+      selected &&
+      selected.routeKind !== 'remote' &&
+      selected.via !== via
+    ) {
+      recordRemoteRouteSkippedWorse();
+    }
+
+    console.log(
+      'OFFLINK_ADAPTIVE_REMOTE_CANDIDATE',
+      JSON.stringify({
+        id,
+        via,
+        hops: safeHops,
+        quality: safeQuality,
+        routeScore,
+        selectedVia: selected?.via ?? 'direct',
+        selectedKind: selected?.routeKind ?? null,
+      }),
+    );
+
+    this.notify();
+  }
+
+  removeExpiredNodes() {
+    const now = Date.now();
+    let changed = false;
+
+    for (const [id, candidates] of this.routeCandidates) {
+      for (const [routeKey, candidate] of candidates) {
+        const ageMs = now - candidate.lastSeen;
+        const timeoutMs =
+          candidate.routeKind === 'direct'
+            ? DIRECT_ROUTE_RETENTION_MS
+            : REMOTE_ROUTE_TIMEOUT_MS;
+
+        if (ageMs > timeoutMs) {
+          candidates.delete(routeKey);
+          changed = true;
+
+          console.log(
+            'OFFLINK_ADAPTIVE_CANDIDATE_EXPIRED',
+            JSON.stringify({
+              id,
+              routeKey,
+              ageMs,
+            }),
+          );
+        }
+      }
+
+      if (candidates.size === 0) {
+        this.routeCandidates.delete(id);
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      this.notify();
+      return;
+    }
+
+    /*
+     * Route freshness changes with time even when no candidate expires.
+     * Notify subscribers so diagnostics can show automatic handovers.
+     */
+    this.notify();
+  }
+
+  getTopology(): MeshNode[] {
+    const now = Date.now();
+    const selectedRoutes: MeshNode[] = [];
+
+    for (const id of this.routeCandidates.keys()) {
+      const selected = this.selectBestRoute(id, now);
+
+      if (selected) {
+        selectedRoutes.push(this.toPublicNode(selected, now));
+      }
+    }
+
+    return selectedRoutes.sort((a, b) => {
+      const scoreDiff =
+        (b.routeScore ?? b.quality) - (a.routeScore ?? a.quality);
+
+      if (scoreDiff !== 0) {
+        return scoreDiff;
+      }
+
+      if (a.hops !== b.hops) {
+        return a.hops - b.hops;
+      }
+
+      return b.lastSeen - a.lastSeen;
+    });
+  }
+
+  /**
+   * GATT operations must only target devices that are physically and
+   * recently reachable over BLE. Remote mesh routes are deliberately
+   * excluded here.
+   */
+  getNearestNodes(): MeshNode[] {
+    const now = Date.now();
+    const directNodes: MeshNode[] = [];
+
+    for (const candidates of this.routeCandidates.values()) {
+      const direct = candidates.get(getRouteKey('direct', null));
+
+      if (
+        direct &&
+        now - direct.lastSeen <= DIRECT_ROUTE_ACTIVE_MS
+      ) {
+        directNodes.push(this.toPublicNode(direct, now));
+      }
+    }
+
+    return directNodes.sort((a, b) => b.rssi - a.rssi);
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  clear() {
+    this.routeCandidates.clear();
+    this.notify();
+  }
+
+  private getOrCreateCandidates(
+    id: string,
+  ): Map<string, MeshRouteCandidate> {
+    const existing = this.routeCandidates.get(id);
+
+    if (existing) {
+      return existing;
+    }
+
+    const created = new Map<string, MeshRouteCandidate>();
+    this.routeCandidates.set(id, created);
+
+    return created;
+  }
+
+  private selectBestRoute(
+    id: string,
+    now = Date.now(),
+  ): MeshRouteCandidate | null {
+    const candidates = this.routeCandidates.get(id);
+
+    if (!candidates || candidates.size === 0) {
+      return null;
+    }
+
+    const eligible = [...candidates.values()]
+      .filter(candidate => {
+        const ageMs = now - candidate.lastSeen;
+
+        if (candidate.routeKind === 'direct') {
+          return ageMs <= DIRECT_ROUTE_ACTIVE_MS;
+        }
+
+        return ageMs <= REMOTE_ROUTE_TIMEOUT_MS;
+      })
+      .map(candidate => {
+        const ageMs = now - candidate.lastSeen;
+        const connected =
+          candidate.routeKind === 'direct' &&
+          ageMs <= DIRECT_ROUTE_ACTIVE_MS;
+
+        return {
+          ...candidate,
+          connected,
+          routeScore: calculateRouteScore({
+            quality: candidate.quality,
+            hops: candidate.hops,
+            connected,
+            ageMs,
+          }),
+        };
+      });
+
+    if (eligible.length === 0) {
+      return null;
+    }
+
+    eligible.sort((a, b) => {
+      const scoreDiff =
+        (b.routeScore ?? b.quality) - (a.routeScore ?? a.quality);
+
+      if (scoreDiff !== 0) {
+        return scoreDiff;
+      }
+
+      if (a.hops !== b.hops) {
+        return a.hops - b.hops;
+      }
+
+      return b.lastSeen - a.lastSeen;
+    });
+
+    return eligible[0];
+  }
+
+  private toPublicNode(
+    candidate: MeshRouteCandidate,
+    now: number,
+  ): MeshNode {
+    const ageMs = now - candidate.lastSeen;
+    const connected =
+      candidate.routeKind === 'direct' &&
+      ageMs <= DIRECT_ROUTE_ACTIVE_MS;
+
+    const routeScore = calculateRouteScore({
+      quality: candidate.quality,
+      hops: candidate.hops,
+      connected,
+      ageMs,
+    });
+
+    return {
+      id: candidate.id,
+      userId: candidate.userId,
+      name: candidate.name,
+      rssi: candidate.rssi,
+      quality: candidate.quality,
+      firstSeen: candidate.firstSeen,
+      lastSeen: candidate.lastSeen,
+      lastUpdated: candidate.lastUpdated,
+      hops: candidate.hops,
+      via: candidate.via,
+      discoveredVia: candidate.discoveredVia,
+      connected,
+      routeScore,
+      routeReason: connected
+        ? 'selected fresh direct BLE route'
+        : `selected adaptive route via ${candidate.via}`,
+    };
+  }
+
+  private isSelfRoute(id: string, via: string | null): boolean {
+    return Boolean(
+      this.selfMeshId &&
+        (id === this.selfMeshId || via === this.selfMeshId),
+    );
+  }
+
+  private removeSelfRoutes() {
+    if (!this.selfMeshId) {
+      return;
+    }
+
+    let changed = false;
+
+    for (const [id, candidates] of this.routeCandidates) {
+      if (id === this.selfMeshId) {
+        this.routeCandidates.delete(id);
+        changed = true;
+        continue;
+      }
+
+      for (const [routeKey, candidate] of candidates) {
+        if (
+          candidate.id === this.selfMeshId ||
+          candidate.via === this.selfMeshId
+        ) {
+          candidates.delete(routeKey);
+          changed = true;
+        }
+      }
+
+      if (candidates.size === 0) {
+        this.routeCandidates.delete(id);
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      this.notify();
+    }
+  }
+
+  private notify() {
+    setTimeout(() => {
+      this.listeners.forEach(listener => listener());
+    }, 0);
+  }
+}
+
+const meshTopology = new MeshTopologyStore();
+
+setInterval(() => {
+  meshTopology.removeExpiredNodes();
+}, CLEANUP_INTERVAL_MS);
+
+export default meshTopology;

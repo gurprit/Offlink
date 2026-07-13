@@ -531,26 +531,7 @@ class MeshTopologyStore {
       reason,
     };
 
-    /*
-     * Keep the printed payload detailed, but deduplicate using only
-     * meaningful routing state. Candidate ages and continuously changing
-     * scores should not produce a new log line every second.
-     */
-    const signature = JSON.stringify({
-      destinationId,
-      previousRoute: previousRouteKey ?? null,
-      selectedRoute: payload.selectedRoute,
-      selectedKind: selected?.routeKind ?? null,
-      selectedVia: selected?.via ?? null,
-      directAvailable: Boolean(directCandidate),
-      bestNormalRemoteVia:
-        normalRemoteCandidate?.via ?? null,
-      bestEmergencyRemoteVia:
-        emergencyRemoteCandidate?.via ?? null,
-      hysteresisHeld,
-      reason,
-    });
-
+    const signature = JSON.stringify(payload);
     const previousSignature =
       lastRouteDecisionSignatureByDestination.get(
         destinationId,
@@ -567,7 +548,7 @@ class MeshTopologyStore {
 
     console.log(
       'OFFLINK_ROUTE_DECISION',
-      JSON.stringify(payload),
+      signature,
     );
   }
 

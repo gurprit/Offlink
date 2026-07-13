@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {
   Alert,
   SafeAreaView,
@@ -52,8 +52,7 @@ export function HomeScreen({
   const [isScanning, setIsScanning] = useState(false);
   const [manualFriendId, setManualFriendId] = useState('');
   const [showDeveloperTools, setShowDeveloperTools] = useState(false);
-  const logoTapCountRef = useRef(0);
-  const logoTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [logoTapCount, setLogoTapCount] = useState(0);
   const [nearestDeviceId, setNearestDeviceId] = useState<string | null>(null);
 
   const qrValue = useMemo(() => {
@@ -61,41 +60,19 @@ export function HomeScreen({
   }, [savedProfile]);
 
   function handleLogoPress() {
-    logoTapCountRef.current += 1;
+    const nextCount = logoTapCount + 1;
+    setLogoTapCount(nextCount);
 
-    if (logoTapTimerRef.current) {
-      clearTimeout(logoTapTimerRef.current);
+    if (nextCount >= 5) {
+      setShowDeveloperTools(value => !value);
+      setLogoTapCount(0);
     }
-
-    logoTapTimerRef.current = setTimeout(() => {
-      const tapCount = logoTapCountRef.current;
-
-      logoTapCountRef.current = 0;
-      logoTapTimerRef.current = null;
-
-      if (tapCount >= 5) {
-        setShowDeveloperTools(value => !value);
-        return;
-      }
-
-      if (tapCount >= 2) {
-        onShowMeshDiagnostics?.();
-      }
-    }, 450);
   }
 
   function generateEmojiChoices() {
     const shuffled = [...ALL_EMOJIS].sort(() => Math.random() - 0.5);
     setEmojiChoices(shuffled.slice(0, 10));
   }
-
-  useEffect(() => {
-    return () => {
-      if (logoTapTimerRef.current) {
-        clearTimeout(logoTapTimerRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     async function initialise() {

@@ -19,10 +19,6 @@ import {createMeshTopologySummary, encodeMeshTopologySummary} from '../services/
 import {publishLocalTopology, readAndApplyNearbyTopology} from '../services/MeshTopologyExchangeService';
 import {getAllNeighbourReliability, MeshNeighbourReliabilityStats} from '../services/MeshNeighbourReliability';
 import {
-  getAllRouteMemory,
-  MeshRouteMemoryStats,
-} from '../services/MeshRouteMemory';
-import {
   getMeshDiagnosticsSnapshot,
   resetMeshDiagnostics,
 } from '../services/MeshDiagnosticsService';
@@ -92,46 +88,6 @@ function buildMeshTreeLines(selfId: string, nodes: MeshNode[]): string[] {
   return lines;
 }
 
-function getBestRouteMemoryForNode(
-  nodeId: string,
-  routeMemory: MeshRouteMemoryStats[],
-): MeshRouteMemoryStats | null {
-  const candidates = routeMemory
-    .filter(memory => memory.destinationId === nodeId)
-    .sort((a, b) => {
-      if (b.confidenceScore !== a.confidenceScore) {
-        return b.confidenceScore - a.confidenceScore;
-      }
-
-      if (b.selections !== a.selections) {
-        return b.selections - a.selections;
-      }
-
-      return b.lastObservedAt - a.lastObservedAt;
-    });
-
-  return candidates[0] ?? null;
-}
-
-function getNeighbourHealthForRoute(
-  node: MeshNode,
-  neighbourHealth: MeshNeighbourReliabilityStats[],
-): MeshNeighbourReliabilityStats | null {
-  const healthNodeId = node.connected
-    ? node.id
-    : node.via;
-
-  if (!healthNodeId) {
-    return null;
-  }
-
-  return (
-    neighbourHealth.find(
-      neighbour => neighbour.nodeId === healthNodeId,
-    ) ?? null
-  );
-}
-
 function StatRow({
   label,
   value,
@@ -174,9 +130,6 @@ export function MeshDiagnosticsScreen({
   const [neighbourHealth, setNeighbourHealth] = useState<MeshNeighbourReliabilityStats[]>(
     getAllNeighbourReliability(),
   );
-  const [routeMemory, setRouteMemory] = useState<MeshRouteMemoryStats[]>(
-    getAllRouteMemory(),
-  );
 
   useEffect(() => {
     loadProfile().then(profile => {
@@ -189,13 +142,11 @@ export function MeshDiagnosticsScreen({
       setSnapshot(getMeshDiagnosticsSnapshot());
       setNodes(MeshTopology.getTopology());
       setNeighbourHealth(getAllNeighbourReliability());
-      setRouteMemory(getAllRouteMemory());
     }, 1000);
 
     const unsubscribe = MeshTopology.subscribe(() => {
       setNodes(MeshTopology.getTopology());
       setNeighbourHealth(getAllNeighbourReliability());
-      setRouteMemory(getAllRouteMemory());
     });
 
     return () => {
@@ -393,107 +344,6 @@ export function MeshDiagnosticsScreen({
           )}
         </View>
 
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Mesh Intelligence</Text>
-
-          {nodes.length === 0 ? (
-            <Text style={styles.empty}>
-              No visible nodes yet. Let BLE scanning and topology sync run to build mesh intelligence.
-            </Text>
-          ) : (
-            nodes.map(node => {
-              const memory = getBestRouteMemoryForNode(
-                node.id,
-                routeMemory,
-              );
-
-              const health = getNeighbourHealthForRoute(
-                node,
-                neighbourHealth,
-              );
-
-              const routeLabel = node.connected
-                ? 'Direct BLE'
-                : `Hop ${node.hops} via ${node.via || 'unknown'}`;
-
-              return (
-                <View key={`intelligence-${node.id}`} style={styles.nodeCard}>
-                  <View style={styles.nodeHeader}>
-                    <Text style={styles.nodeName}>
-                      {node.name || '🙂'} {node.id}
-                    </Text>
-
-                    <Text style={styles.healthBadge}>
-                      {node.connected
-                        ? 'Direct'
-                        : `Confidence ${memory?.confidenceScore ?? 0}`}
-                    </Text>
-                  </View>
-
-                  <StatRow label="Selected route" value={routeLabel} />
-                  <StatRow label="Quality" value={`Q${node.quality}`} />
-                  <StatRow
-                    label="Route score"
-                    value={node.routeScore ?? node.quality}
-                  />
-                  <StatRow
-                    label="Route reason"
-                    value={node.routeReason || 'n/a'}
-                  />
-                  <StatRow
-                    label="Last seen"
-                    value={formatAge(node.lastSeen)}
-                  />
-                  <StatRow
-                    label="GATT reliability"
-                    value={
-                      health
-                        ? `${health.score}/100`
-                        : 'No data'
-                    }
-                  />
-                  <StatRow
-                    label="Learned relay"
-                    value={memory?.via ?? 'Not needed yet'}
-                  />
-                  <StatRow
-                    label="Relay confidence"
-                    value={
-                      memory
-                        ? `${memory.confidenceScore}/100`
-                        : 'No history'
-                    }
-                  />
-                  <StatRow
-                    label="Route observations"
-                    value={memory?.observations ?? 0}
-                  />
-                  <StatRow
-                    label="Route selections"
-                    value={memory?.selections ?? 0}
-                  />
-                  <StatRow
-                    label="Average relay quality"
-                    value={
-                      memory
-                        ? `Q${memory.averageQuality}`
-                        : 'n/a'
-                    }
-                  />
-                  <StatRow
-                    label="Last relay observation"
-                    value={
-                      memory
-                        ? formatAge(memory.lastObservedAt)
-                        : 'n/a'
-                    }
-                  />
-                </View>
-              );
-            })
-          )}
-        </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Routing Decisions</Text>
