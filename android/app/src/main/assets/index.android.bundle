@@ -104177,6 +104177,13 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   function getRandomRelayDelay() {
     return MIN_RELAY_DELAY_MS + Math.floor(Math.random() * (MAX_RELAY_DELAY_MS - MIN_RELAY_DELAY_MS + 1));
   }
+  function getNextDispatchDelay() {
+    var now = Date.now();
+    var relayDelay = getRandomRelayDelay();
+    var intervalDelay = Math.max(0, MIN_DISPATCH_INTERVAL_MS - (now - lastDispatchAt));
+    var leaseDelay = Math.max(0, transportPayloadLeaseUntil - now);
+    return Math.max(relayDelay, intervalDelay, leaseDelay);
+  }
   function runScheduledDispatch(_x) {
     return _runScheduledDispatch.apply(this, arguments);
   }
@@ -104184,13 +104191,6 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     _runScheduledDispatch = (0, _asyncToGenerator2.default)(function* (reason) {
       if (dispatchInFlight) {
         return false;
-      }
-      var now = Date.now();
-      var waitForInterval = Math.max(0, MIN_DISPATCH_INTERVAL_MS - (now - lastDispatchAt));
-      if (waitForInterval > 0) {
-        yield new Promise(function (resolve) {
-          return setTimeout(resolve, waitForInterval);
-        });
       }
       var nextPacket = (0, _$$_REQUIRE(_dependencyMap[2], "./MeshRelayQueue").getNextRelayPacket)();
       if (!nextPacket) {
@@ -104215,7 +104215,8 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
           packetId: nextPacket.id,
           kind: transportPayloadKind,
           leaseMs: TRANSPORT_PAYLOAD_LEASE_MS,
-          leaseUntil: transportPayloadLeaseUntil
+          leaseUntil: transportPayloadLeaseUntil,
+          remaining: (0, _$$_REQUIRE(_dependencyMap[2], "./MeshRelayQueue").getRelayQueueSize)()
         }));
         (0, _$$_REQUIRE(_dependencyMap[5], "./MeshDiagnosticsService").recordMeshPacketRelayed)(nextPacket);
         return true;
@@ -104225,31 +104226,39 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     });
     return _runScheduledDispatch.apply(this, arguments);
   }
+  function scheduleDispatch(reason) {
+    if (scheduledDispatch || dispatchInFlight || (0, _$$_REQUIRE(_dependencyMap[2], "./MeshRelayQueue").getRelayQueueSize)() === 0) {
+      return false;
+    }
+    var delayMs = getNextDispatchDelay();
+    (0, _$$_REQUIRE(_dependencyMap[5], "./MeshDiagnosticsService").recordMeshRelayDelay)(delayMs);
+    console.log('OFFLINK_MESH_DISPATCH_SCHEDULED', JSON.stringify({
+      reason: reason,
+      delayMs: delayMs,
+      queueSize: (0, _$$_REQUIRE(_dependencyMap[2], "./MeshRelayQueue").getRelayQueueSize)(),
+      leaseRemainingMs: Math.max(0, transportPayloadLeaseUntil - Date.now())
+    }));
+    scheduledDispatch = setTimeout(function () {
+      scheduledDispatch = null;
+      runScheduledDispatch(reason).catch(function (error) {
+        (0, _$$_REQUIRE(_dependencyMap[5], "./MeshDiagnosticsService").recordMeshRelayFailure)();
+        console.log('OFFLINK_MESH_DISPATCH_RUN_ERROR', String(error));
+      }).finally(function () {
+        if ((0, _$$_REQUIRE(_dependencyMap[2], "./MeshRelayQueue").getRelayQueueSize)() > 0) {
+          scheduleDispatch('queue-drain');
+        } else {
+          console.log('OFFLINK_MESH_QUEUE_DRAINED');
+        }
+      });
+    }, delayMs);
+    return true;
+  }
   function dispatchNextMeshPacket(_x2) {
     return _dispatchNextMeshPacket.apply(this, arguments);
   }
   function _dispatchNextMeshPacket() {
     _dispatchNextMeshPacket = (0, _asyncToGenerator2.default)(function* (reason) {
-      if (scheduledDispatch || dispatchInFlight) {
-        return false;
-      }
-      var relayDelay = getRandomRelayDelay();
-      (0, _$$_REQUIRE(_dependencyMap[5], "./MeshDiagnosticsService").recordMeshRelayDelay)(relayDelay);
-      console.log('OFFLINK_MESH_DISPATCH_SCHEDULED', JSON.stringify({
-        reason: reason,
-        delayMs: relayDelay,
-        queueSize: (0, _$$_REQUIRE(_dependencyMap[2], "./MeshRelayQueue").getRelayQueueSize)()
-      }));
-      return new Promise(function (resolve) {
-        scheduledDispatch = setTimeout(function () {
-          scheduledDispatch = null;
-          runScheduledDispatch(reason).then(resolve).catch(function (error) {
-            (0, _$$_REQUIRE(_dependencyMap[5], "./MeshDiagnosticsService").recordMeshRelayFailure)();
-            console.log('OFFLINK_MESH_DISPATCH_RUN_ERROR', String(error));
-            resolve(false);
-          });
-        }, relayDelay);
-      });
+      return scheduleDispatch(reason);
     });
     return _dispatchNextMeshPacket.apply(this, arguments);
   }
