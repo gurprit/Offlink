@@ -9,6 +9,7 @@ import {
   recordRouteObservation,
   recordRouteSelected,
 } from './MeshRouteMemory';
+import {recordMeshFlightEvent} from './MeshFlightRecorder';
 import {
   scoreMeshRoute,
 } from './MeshRouteScoring';
@@ -359,6 +360,23 @@ class MeshTopologyStore {
     selected: MeshRouteCandidate | null,
   ) {
     if (!selected) {
+      const previousKey =
+        this.selectedRouteKeyByDestination.get(
+          destinationId,
+        );
+
+      if (previousKey) {
+        recordMeshFlightEvent({
+          type: 'route_expired',
+          message: 'Selected mesh route became unavailable',
+          level: 'warning',
+          data: {
+            destinationId,
+            previousRoute: previousKey,
+          },
+        });
+      }
+
       this.selectedRouteKeyByDestination.delete(
         destinationId,
       );
@@ -403,6 +421,25 @@ class MeshTopologyStore {
         via: selected.via,
       });
     }
+
+    recordMeshFlightEvent({
+      type: previousKey
+        ? 'route_changed'
+        : 'route_selected',
+      message: previousKey
+        ? 'Selected mesh route changed'
+        : 'Mesh route selected',
+      level: 'success',
+      data: {
+        destinationId,
+        previousRoute: previousKey ?? null,
+        selectedRoute: selectedKey,
+        selectedVia: selected.via,
+        selectedKind: selected.routeKind,
+        hops: selected.hops,
+        quality: selected.quality,
+      },
+    });
 
     console.log(
       'OFFLINK_ADAPTIVE_ROUTE_CHANGED',

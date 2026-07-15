@@ -1,3 +1,5 @@
+import {recordMeshFlightEvent} from './MeshFlightRecorder';
+
 export type MeshNeighbourReliabilityStats = {
   nodeId: string;
   gattSuccesses: number;
@@ -48,6 +50,18 @@ export function recordGattSuccess(nodeId: string) {
   stats.gattSuccesses += 1;
   stats.lastSuccessAt = Date.now();
   stats.score = calculateScore(stats);
+
+  recordMeshFlightEvent({
+    type: 'gatt_success',
+    message: 'GATT sync succeeded',
+    level: 'success',
+    data: {
+      nodeId,
+      score: stats.score,
+      successes: stats.gattSuccesses,
+      failures: stats.gattFailures,
+    },
+  });
 }
 
 export function recordGattFailure(nodeId: string) {
@@ -56,6 +70,18 @@ export function recordGattFailure(nodeId: string) {
   stats.gattFailures += 1;
   stats.lastFailureAt = Date.now();
   stats.score = calculateScore(stats);
+
+  recordMeshFlightEvent({
+    type: 'gatt_failure',
+    message: 'GATT sync failed',
+    level: 'warning',
+    data: {
+      nodeId,
+      score: stats.score,
+      successes: stats.gattSuccesses,
+      failures: stats.gattFailures,
+    },
+  });
 }
 
 export function getNeighbourReliability(nodeId: string): MeshNeighbourReliabilityStats {
