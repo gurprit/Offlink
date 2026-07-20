@@ -59,6 +59,8 @@ let persistPromise: Promise<void> = Promise.resolve();
 
 const listeners = new Set<MeshFlightRecorderListener>();
 
+let notificationScheduled = false;
+
 function generateEventId(): string {
   return (
     Date.now().toString(36) +
@@ -128,6 +130,19 @@ function notifyListeners(): void {
       );
     }
   });
+}
+
+function scheduleListenerNotification(): void {
+  if (notificationScheduled) {
+    return;
+  }
+
+  notificationScheduled = true;
+
+  setTimeout(() => {
+    notificationScheduled = false;
+    notifyListeners();
+  }, 0);
 }
 
 function queuePersist(): void {
@@ -201,7 +216,7 @@ export async function initialiseMeshFlightRecorder(): Promise<void> {
     } finally {
       hasLoaded = true;
       loadPromise = null;
-      notifyListeners();
+      scheduleListenerNotification();
     }
   })();
 
@@ -230,7 +245,7 @@ export function recordMeshFlightEvent({
     JSON.stringify(event),
   );
 
-  notifyListeners();
+  scheduleListenerNotification();
   queuePersist();
 
   return {...event};
@@ -284,16 +299,42 @@ export function getMeshFlightRecorderNewestTimestamp(): number | null {
   );
 }
 
-export function createMeshFlightRecorderExport(): string {
+export function createMeshFlightRecorderExport(
+  maxEvents = 250,
+): string {
+  const safeLimit = Math.max(
+    1,
+    Math.min(MAX_EVENTS, Math.floor(maxEvents)),
+  );
+
+  const allEvents = getMeshFlightRecorderEvents();
+  const exportedEvents = allEvents
+    .slice(0, safeLimit)
+    .reverse();
+
+  const eventCounts = allEvents.reduce<
+    Record<string, number>
+  >((counts, event) => {
+    counts[event.type] =
+      (counts[event.type] ?? 0) + 1;
+
+    return counts;
+  }, {});
+
   return JSON.stringify(
     {
       format: 'offlink-mesh-flight-recorder',
       version: 1,
       exportedAt: Date.now(),
-      eventCount: events.length,
-      events: getMeshFlightRecorderEvents()
-        .slice()
-        .reverse(),
+      storedEventCount: allEvents.length,
+      exportedEventCount: exportedEvents.length,
+      omittedEventCount: Math.max(
+        0,
+        allEvents.length - exportedEvents.length,
+      ),
+      exportWindow: 'newest-events',
+      eventCounts,
+      events: exportedEvents,
     },
     null,
     2,
@@ -302,7 +343,7 @@ export function createMeshFlightRecorderExport(): string {
 
 export async function clearMeshFlightRecorder(): Promise<void> {
   events = [];
-  notifyListeners();
+  scheduleListenerNotification();
 
   try {
     await AsyncStorage.removeItem(STORAGE_KEY);
@@ -320,7 +361,6 @@ export function subscribeToMeshFlightRecorder(
   listener: MeshFlightRecorderListener,
 ): () => void {
   listeners.add(listener);
-  listener(getMeshFlightRecorderEvents());
 
   return () => {
     listeners.delete(listener);
