@@ -26,6 +26,7 @@ import {
 } from '../services/StorageService';
 import {ALL_EMOJIS} from '../data/emojis';
 import {ensureMeshId} from '../services/MeshIdentityService';
+import type {OfflinkPermissionResult} from '../services/PermissionService';
 
 export function HomeScreen({
   onShowNearby,
@@ -35,6 +36,10 @@ export function HomeScreen({
   onShowSightings,
   onShowMap,
   onShowMeshDiagnostics,
+  permissionResult,
+  onEnableOfflink,
+  onOpenOfflinkSettings,
+  onCheckOfflinkPermissions,
 }: {
   onShowNearby?: () => void;
   onShowSightings?: () => void;
@@ -43,6 +48,10 @@ export function HomeScreen({
   onNearbyUserFound?: (user: import('../models/types').NearbyOfflinkUser) => void;
   onFriendsChanged?: (friends: OfflinkFriend[]) => void;
   bleStatus?: string;
+  permissionResult: OfflinkPermissionResult | null;
+  onEnableOfflink: () => void;
+  onOpenOfflinkSettings: () => void;
+  onCheckOfflinkPermissions: () => void;
 }) {
   const [selectedEmoji, setSelectedEmoji] = useState('');
   const [emojiChoices, setEmojiChoices] = useState<string[]>([]);
@@ -335,31 +344,92 @@ export function HomeScreen({
           <Text style={styles.tagline}>Find your friends. No signal needed.</Text>
         </View>
 
-        <Card>
-          <Text style={styles.cardTitle}>Nearby friends</Text>
-          <Text style={styles.helper}>{bleStatus || 'BLE idle'}</Text>
+        {!permissionResult?.granted ? (
+          <Card>
+            <Text style={styles.onboardingEmoji}>📡</Text>
+            <Text style={styles.cardTitle}>Welcome to Offlink</Text>
 
-          <View style={{height: 12}} />
+            {permissionResult === null ? (
+              <Text style={styles.helper}>
+                Checking whether Offlink is ready to use...
+              </Text>
+            ) : (
+              <>
+                <Text style={styles.onboardingText}>
+                  Offlink uses Bluetooth to discover nearby phones and location
+                  to share your position with friends across the offline mesh.
+                </Text>
 
-          <Button
-            label="Show Nearby Friends"
-            onPress={() => onShowNearby?.()}
-          />
+                <View style={styles.permissionBox}>
+                  <Text style={styles.permissionLabel}>
+                    {permissionResult.bluetoothGranted ? '✓' : '○'} Bluetooth
+                  </Text>
+                  <Text style={styles.permissionLabel}>
+                    {permissionResult.locationGranted ? '✓' : '○'} Location
+                  </Text>
+                </View>
 
-          <View style={{height: 12}} />
+                <Text style={styles.privacyText}>
+                  Nothing is uploaded to the internet.
+                </Text>
 
-          <Button
-            label="Show Map"
-            onPress={() => onShowMap?.()}
-          />
+                <View style={styles.saveButtonWrap}>
+                  <Button
+                    label={
+                      permissionResult.status === 'blocked'
+                        ? 'Open Android Settings'
+                        : 'Enable Offlink'
+                    }
+                    onPress={() =>
+                      permissionResult.status === 'blocked'
+                        ? onOpenOfflinkSettings?.()
+                        : onEnableOfflink?.()
+                    }
+                  />
+                </View>
 
-          <View style={{height: 12}} />
+                {permissionResult.status === 'blocked' ? (
+                  <View style={styles.saveButtonWrap}>
+                    <Button
+                      label="Check Permissions Again"
+                      onPress={() => onCheckOfflinkPermissions?.()}
+                    />
+                  </View>
+                ) : null}
+              </>
+            )}
+          </Card>
+        ) : null}
 
-          <Button
-            label="Show Sightings"
-            onPress={() => onShowSightings?.()}
-          />
-        </Card>
+        {permissionResult?.granted ? (
+          <Card>
+            <Text style={styles.cardTitle}>Nearby friends</Text>
+            <Text style={styles.helper}>
+              {bleStatus || 'Preparing Offlink...'}
+            </Text>
+
+            <View style={{height: 12}} />
+
+            <Button
+              label="Show Nearby Friends"
+              onPress={() => onShowNearby?.()}
+            />
+
+            <View style={{height: 12}} />
+
+            <Button
+              label="Show Map"
+              onPress={() => onShowMap?.()}
+            />
+
+            <View style={{height: 12}} />
+
+            <Button
+              label="Show Sightings"
+              onPress={() => onShowSightings?.()}
+            />
+          </Card>
+        ) : null}
 
         {showDeveloperTools ? (
           <Card>
@@ -581,6 +651,36 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
     marginBottom: 16,
+  },
+  onboardingEmoji: {
+    fontSize: 46,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  onboardingText: {
+    color: '#d0d0d0',
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  permissionBox: {
+    backgroundColor: '#0b0b0b',
+    borderRadius: 16,
+    marginTop: 18,
+    padding: 16,
+  },
+  permissionLabel: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '700',
+    marginVertical: 5,
+  },
+  privacyText: {
+    color: '#9f9f9f',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 16,
+    textAlign: 'center',
   },
   emojiGrid: {
     flexDirection: 'row',

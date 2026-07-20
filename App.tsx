@@ -9,11 +9,16 @@ import {MeshDiagnosticsScreen} from './src/screens/MeshDiagnosticsScreen';
 import {NearbyOfflinkUser, OfflinkFriend, OfflinkSighting} from './src/models/types';
 import {loadFriends, loadProfile, loadSightings, saveFriends, saveSightings} from './src/services/StorageService';
 import {
-  requestBlePermissions,
   startBleBroadcast,
   startOfflinkScan,
   stopBleBroadcastTest,
 } from './src/services/BleService';
+import {
+  checkOfflinkPermissions,
+  openOfflinkSettings,
+  requestOfflinkPermissions,
+  type OfflinkPermissionResult,
+} from './src/services/PermissionService';
 import {OfflinkLocation, watchCurrentLocation} from './src/services/LocationService';
 import {updateOwnLocation} from './src/services/FriendLocationService';
 import {
@@ -57,7 +62,10 @@ export default function App() {
   const nearbyUsersRef = useRef<NearbyOfflinkUser[]>([]);
   const [friends, setFriends] = useState<OfflinkFriend[]>([]);
   const [sightings, setSightings] = useState<OfflinkSighting[]>([]);
-  const [bleStatus, setBleStatus] = useState('BLE starting...');
+  const [bleStatus, setBleStatus] = useState('Preparing Offlink...');
+  const [permissionResult, setPermissionResult] =
+    useState<OfflinkPermissionResult | null>(null);
+  const [permissionRestartKey, setPermissionRestartKey] = useState(0);
   const [gattSyncStatus, setGattSyncStatus] = useState({
     state: 'idle',
     targetUserId: null as string | null,
@@ -111,8 +119,21 @@ export default function App() {
       sightingsRef.current = savedSightings;
       setSightings(savedSightings);
 
+      const permissions = await checkOfflinkPermissions();
+
+      if (!isMounted) {
+        return;
+      }
+
+      setPermissionResult(permissions);
+
+      if (!permissions.granted) {
+        setBleStatus('Offlink needs permission before it can start.');
+        return;
+      }
+
       if (!savedProfile) {
-        setBleStatus('Save an emoji identity to start BLE.');
+        setBleStatus('Create your emoji identity to start Offlink.');
         return;
       }
 
@@ -131,17 +152,6 @@ export default function App() {
           meshId: savedProfile.meshId,
         },
       });
-
-      const granted = await requestBlePermissions();
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (!granted) {
-        setBleStatus('Bluetooth permissions needed.');
-        return;
-      }
 
       try {
         stopLocationWatch = await watchCurrentLocation(
@@ -260,9 +270,9 @@ export default function App() {
           },
         });
 
-        setBleStatus('BLE active: scheduled scan and topology sync.');
+        setBleStatus('Ready to find nearby friends.');
       } catch (error) {
-        setBleStatus(`BLE error: ${String(error)}`);
+        setBleStatus(`Offlink could not start: ${String(error)}`);
       }
     }
 
@@ -296,7 +306,40 @@ export default function App() {
 
       stopBleBroadcastTest().catch(() => {});
     };
-  }, []);
+  }, [permissionRestartKey]);
+
+  async function handleEnableOfflink() {
+    setBleStatus('Requesting Android permissions...');
+
+    const result = await requestOfflinkPermissions();
+    setPermissionResult(result);
+
+    if (result.granted) {
+      setBleStatus('Preparing Offlink...');
+      setPermissionRestartKey(current => current + 1);
+      return;
+    }
+
+    setBleStatus(
+      result.status === 'blocked'
+        ? 'Permission must be enabled in Android Settings.'
+        : 'Offlink still needs permission to start.',
+    );
+  }
+
+  async function handleCheckOfflinkPermissions() {
+    const result = await checkOfflinkPermissions();
+    setPermissionResult(result);
+
+    if (result.granted) {
+      setBleStatus('Preparing Offlink...');
+      setPermissionRestartKey(current => current + 1);
+    }
+  }
+
+  async function handleOpenOfflinkSettings() {
+    await openOfflinkSettings();
+  }
 
   const nearbyFriends = useMemo(() => {
     const friendIds = new Set(friends.map(friend => friend.userId));
@@ -591,6 +634,10 @@ export default function App() {
       onNearbyUserFound={handleNearbyUserFound}
       onFriendsChanged={setFriends}
       bleStatus={bleStatus}
+      permissionResult={permissionResult}
+      onEnableOfflink={handleEnableOfflink}
+      onOpenOfflinkSettings={handleOpenOfflinkSettings}
+      onCheckOfflinkPermissions={handleCheckOfflinkPermissions}
     />
   );
 }
