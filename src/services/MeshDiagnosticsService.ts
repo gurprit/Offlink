@@ -2,6 +2,7 @@ import {
   MeshDiagnosticsLastPacket,
   MeshDiagnosticsSnapshot,
 } from '../models/types';
+import {recordMeshFlightEvent} from './MeshFlightRecorder';
 
 const diagnostics: MeshDiagnosticsSnapshot = {
   packetsCreated: 0,
@@ -77,6 +78,17 @@ export function recordMeshPacketCreated(packet: {
     ...packet,
     event: 'created',
   });
+
+  recordMeshFlightEvent({
+    type: 'packet_created',
+    message: 'Mesh packet created',
+    data: {
+      packetId: packet.id,
+      origin: packet.origin,
+      ttl: packet.ttl,
+      hopCount: packet.hopCount,
+    },
+  });
 }
 
 export function recordMeshPacketAccepted(packet: {
@@ -91,6 +103,18 @@ export function recordMeshPacketAccepted(packet: {
   setLastPacket({
     ...packet,
     event: 'received',
+  });
+
+  recordMeshFlightEvent({
+    type: 'packet_received',
+    message: 'Mesh packet accepted',
+    level: 'success',
+    data: {
+      packetId: packet.id,
+      origin: packet.origin,
+      ttl: packet.ttl,
+      hopCount: packet.hopCount,
+    },
   });
 }
 
@@ -127,6 +151,28 @@ export function recordMeshPacketDropped(
     event: 'dropped',
     reason,
   });
+
+  recordMeshFlightEvent({
+    type: 'packet_dropped',
+    message: `Mesh packet dropped: ${reason}`,
+    level:
+      reason === 'duplicate' || reason === 'own-origin'
+        ? 'warning'
+        : 'error',
+    data: {
+      packetId: packet.id || 'unknown',
+      origin: packet.origin || 'unknown',
+      ttl:
+        typeof packet.ttl === 'number'
+          ? packet.ttl
+          : -1,
+      hopCount:
+        typeof packet.hopCount === 'number'
+          ? packet.hopCount
+          : -1,
+      reason,
+    },
+  });
 }
 
 export function recordMeshPacketRelayed(packet: {
@@ -142,11 +188,32 @@ export function recordMeshPacketRelayed(packet: {
     ...packet,
     event: 'relayed',
   });
+
+  recordMeshFlightEvent({
+    type: 'packet_relayed',
+    message: 'Mesh packet relayed',
+    level: 'success',
+    data: {
+      packetId: packet.id,
+      origin: packet.origin,
+      ttl: packet.ttl,
+      hopCount: packet.hopCount,
+    },
+  });
 }
 
 export function recordMeshRelayFailure() {
   diagnostics.relayFailures += 1;
   touch();
+
+  recordMeshFlightEvent({
+    type: 'packet_dropped',
+    message: 'Mesh relay dispatch failed',
+    level: 'error',
+    data: {
+      relayFailures: diagnostics.relayFailures,
+    },
+  });
 }
 
 export function recordMeshQueueSize(size: number) {

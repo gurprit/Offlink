@@ -3,6 +3,7 @@ import {
   Alert,
   SafeAreaView,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -26,6 +27,13 @@ import {
   getMeshDiagnosticsSnapshot,
   resetMeshDiagnostics,
 } from '../services/MeshDiagnosticsService';
+import {
+  clearMeshFlightRecorder,
+  createMeshFlightRecorderExport,
+  getMeshFlightRecorderEvents,
+  MeshFlightRecorderEvent,
+  subscribeToMeshFlightRecorder,
+} from '../services/MeshFlightRecorder';
 
 function formatAge(timestamp?: number): string {
   if (!timestamp) {
@@ -39,6 +47,59 @@ function formatAge(timestamp?: number): string {
   }
 
   return `${Math.floor(ageMs / 1000)}s ago`;
+}
+
+function formatEventTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+function getEventIcon(
+  event: MeshFlightRecorderEvent,
+): string {
+  if (event.level === 'error') {
+    return '🔴';
+  }
+
+  if (event.level === 'warning') {
+    return '🟠';
+  }
+
+  if (event.level === 'success') {
+    return '🟢';
+  }
+
+  return '🔵';
+}
+
+function formatEventData(
+  event: MeshFlightRecorderEvent,
+): string | null {
+  if (!event.data) {
+    return null;
+  }
+
+  const entries = Object.entries(event.data)
+    .filter(([, value]) => value !== undefined)
+    .slice(0, 8)
+    .map(([key, value]) => {
+      if (typeof value === 'object') {
+        try {
+          return `${key}: ${JSON.stringify(value)}`;
+        } catch {
+          return `${key}: [object]`;
+        }
+      }
+
+      return `${key}: ${String(value)}`;
+    });
+
+  return entries.length > 0
+    ? entries.join(' · ')
+    : null;
 }
 
 function buildMeshTreeLines(selfId: string, nodes: MeshNode[]): string[] {
@@ -177,6 +238,9 @@ export function MeshDiagnosticsScreen({
   const [routeMemory, setRouteMemory] = useState<MeshRouteMemoryStats[]>(
     getAllRouteMemory(),
   );
+  const [flightEvents, setFlightEvents] = useState<
+    MeshFlightRecorderEvent[]
+  >(getMeshFlightRecorderEvents());
 
   useEffect(() => {
     loadProfile().then(profile => {
@@ -198,15 +262,75 @@ export function MeshDiagnosticsScreen({
       setRouteMemory(getAllRouteMemory());
     });
 
+    const unsubscribeFlightRecorder =
+      subscribeToMeshFlightRecorder(events => {
+        setFlightEvents(events);
+      });
+
     return () => {
       clearInterval(timer);
       unsubscribe();
+      unsubscribeFlightRecorder();
     };
   }, []);
 
   function handleReset() {
     resetMeshDiagnostics();
     setSnapshot(getMeshDiagnosticsSnapshot());
+  }
+
+  async function handleExportFlightRecorder() {
+    try {
+      /*
+       * Let the pressed-button frame finish before serialising and
+       * opening Android's share sheet.
+       */
+      await new Promise<void>(resolve => {
+        setTimeout(resolve, 100);
+      });
+
+      const exported =
+        createMeshFlightRecorderExport(250);
+
+      await Share.share({
+        title: 'Offlink Flight Recorder',
+        message: exported,
+      });
+    } catch (error) {
+      Alert.alert(
+        'Export failed',
+        String(error),
+      );
+    }
+  }
+
+  function handleClearFlightRecorder() {
+    Alert.alert(
+      'Clear flight recorder?',
+      'This permanently removes the stored mesh event history from this phone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: () => {
+            clearMeshFlightRecorder()
+              .then(() => {
+                setFlightEvents([]);
+              })
+              .catch(error => {
+                Alert.alert(
+                  'Clear failed',
+                  String(error),
+                );
+              });
+          },
+        },
+      ],
+    );
   }
 
   function handleShowTopologyPayload() {
@@ -249,6 +373,12 @@ export function MeshDiagnosticsScreen({
 
   const lastPacket = snapshot.lastPacket;
   const meshTreeLines = buildMeshTreeLines(selfId, nodes);
+  const recentFlightEvents = flightEvents.slice(0, 20);
+  const newestFlightEvent = flightEvents[0] ?? null;
+  const oldestFlightEvent =
+    flightEvents.length > 0
+      ? flightEvents[flightEvents.length - 1]
+      : null;
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -583,6 +713,87 @@ export function MeshDiagnosticsScreen({
         </View>
 
         <View style={styles.card}>
+          <Text style={styles.cardTitle}>📦 Flight Recorder</Text>
+
+          <StatRow
+            label="Stored events"
+            value={flightEvents.length}
+          />
+          <StatRow
+            label="Newest event"
+            value={
+              newestFlightEvent
+                ? formatAge(newestFlightEvent.timestamp)
+                : 'none'
+            }
+          />
+          <StatRow
+            label="Oldest event"
+            value={
+              oldestFlightEvent
+                ? formatAge(oldestFlightEvent.timestamp)
+                : 'none'
+            }
+          />
+
+          <View style={styles.recorderActions}>
+            <View style={styles.recorderAction}>
+              <Button
+                label="Export Recorder"
+                onPress={handleExportFlightRecorder}
+              />
+            </View>
+
+            <View style={styles.recorderAction}>
+              <Button
+                label="Clear Recorder"
+                onPress={handleClearFlightRecorder}
+              />
+            </View>
+          </View>
+
+          <Text style={styles.timelineTitle}>
+            Recent events
+          </Text>
+
+          {recentFlightEvents.length === 0 ? (
+            <Text style={styles.empty}>
+              No recorded mesh events yet.
+            </Text>
+          ) : (
+            recentFlightEvents.map(event => {
+              const eventData = formatEventData(event);
+
+              return (
+                <View
+                  key={event.id}
+                  style={styles.timelineEvent}>
+                  <View style={styles.timelineHeader}>
+                    <Text style={styles.timelineMessage}>
+                      {getEventIcon(event)} {event.message}
+                    </Text>
+
+                    <Text style={styles.timelineTime}>
+                      {formatEventTime(event.timestamp)}
+                    </Text>
+                  </View>
+
+                  <Text style={styles.timelineType}>
+                    {event.type}
+                  </Text>
+
+                  {eventData ? (
+                    <Text style={styles.timelineData}>
+                      {eventData}
+                    </Text>
+                  ) : null}
+                </View>
+              );
+            })
+          )}
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.cardTitle}>Controls</Text>
           <Button label="Log Topology Payload" onPress={handleShowTopologyPayload} />
 
@@ -719,6 +930,57 @@ const styles = StyleSheet.create({
   },
 
 
+  recorderActions: {
+    marginTop: 16,
+    gap: 10,
+  },
+  recorderAction: {
+    width: '100%',
+  },
+  timelineTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 22,
+    marginBottom: 4,
+  },
+  timelineEvent: {
+    backgroundColor: '#0b0b0b',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#2f2f2f',
+  },
+  timelineHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  timelineMessage: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+    flex: 1,
+  },
+  timelineTime: {
+    color: '#888',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  timelineType: {
+    color: '#aaa',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 6,
+  },
+  timelineData: {
+    color: '#777',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 6,
+  },
   empty: {
     color: '#aaa',
     fontSize: 14,

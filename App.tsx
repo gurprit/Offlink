@@ -43,6 +43,10 @@ import {
 } from './src/services/MeshTopologyExchangeService';
 import {startMeshScheduler} from './src/services/MeshScheduler';
 import {processIncomingMeshPacket} from './src/services/MeshTransportService';
+import {
+  initialiseMeshFlightRecorder,
+  recordMeshFlightEvent,
+} from './src/services/MeshFlightRecorder';
 
 export default function App() {
   const [showNearby, setShowNearby] = useState(false);
@@ -93,6 +97,8 @@ export default function App() {
     }, 5000);
 
     async function initialise() {
+      await initialiseMeshFlightRecorder();
+
       const savedFriends = await loadFriends();
       const savedSightings = await loadSightings();
       const savedProfile = await loadProfile();
@@ -115,6 +121,16 @@ export default function App() {
       setOwnUserId(savedProfile.userId);
       setOwnMeshId(savedProfile.meshId);
       setLocalMeshId(savedProfile.meshId);
+
+      recordMeshFlightEvent({
+        type: 'session_started',
+        message: 'Offlink mesh session started',
+        level: 'success',
+        data: {
+          userId: savedProfile.userId,
+          meshId: savedProfile.meshId,
+        },
+      });
 
       const granted = await requestBlePermissions();
 
@@ -254,6 +270,15 @@ export default function App() {
 
     return () => {
       isMounted = false;
+
+      recordMeshFlightEvent({
+        type: 'session_stopped',
+        message: 'Offlink mesh session stopped',
+        data: {
+          userId: ownUserIdRef.current,
+          meshId: ownMeshIdRef.current,
+        },
+      });
 
       if (stopScan) {
         stopScan();

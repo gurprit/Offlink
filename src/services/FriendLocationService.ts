@@ -1,5 +1,6 @@
 import {FriendLocationRecord} from '../models/types';
 import {OfflinkLocation} from './LocationService';
+import {recordMeshFlightEvent} from './MeshFlightRecorder';
 
 const DEFAULT_MAX_AGE_MS = 1000 * 60 * 60;
 const MAX_HOPS = 10;
@@ -144,6 +145,20 @@ export function updateOwnLocation({
     }),
   );
 
+  recordMeshFlightEvent({
+    type: 'friend_location_created',
+    message: 'Own location record updated',
+    level: 'success',
+    data: {
+      userId: record.userId,
+      sourceNodeId: record.sourceNodeId,
+      sequence: record.sequence,
+      timestamp: record.timestamp,
+      accuracy: record.accuracy,
+      hops: record.hops,
+    },
+  });
+
   return record;
 }
 
@@ -161,6 +176,16 @@ export function applyFriendLocation(
       }),
     );
 
+    recordMeshFlightEvent({
+      type: 'friend_location_applied',
+      message: 'Invalid friend location rejected',
+      level: 'error',
+      data: {
+        userId: record?.userId || 'unknown',
+        result: 'invalid',
+      },
+    });
+
     return 'invalid';
   }
 
@@ -168,6 +193,18 @@ export function applyFriendLocation(
 
   if (existing) {
     if (next.sequence < existing.sequence) {
+      recordMeshFlightEvent({
+        type: 'friend_location_applied',
+        message: 'Older friend location ignored',
+        level: 'warning',
+        data: {
+          userId: next.userId,
+          incomingSequence: next.sequence,
+          existingSequence: existing.sequence,
+          result: 'ignored-older',
+        },
+      });
+
       return 'ignored-older';
     }
 
@@ -175,6 +212,19 @@ export function applyFriendLocation(
       next.sequence === existing.sequence &&
       next.timestamp < existing.timestamp
     ) {
+      recordMeshFlightEvent({
+        type: 'friend_location_applied',
+        message: 'Older friend location timestamp ignored',
+        level: 'warning',
+        data: {
+          userId: next.userId,
+          sequence: next.sequence,
+          incomingTimestamp: next.timestamp,
+          existingTimestamp: existing.timestamp,
+          result: 'ignored-older',
+        },
+      });
+
       return 'ignored-older';
     }
 
@@ -182,6 +232,18 @@ export function applyFriendLocation(
       next.sequence === existing.sequence &&
       next.timestamp === existing.timestamp
     ) {
+      recordMeshFlightEvent({
+        type: 'friend_location_applied',
+        message: 'Duplicate friend location ignored',
+        level: 'warning',
+        data: {
+          userId: next.userId,
+          sequence: next.sequence,
+          timestamp: next.timestamp,
+          result: 'ignored-duplicate',
+        },
+      });
+
       return 'ignored-duplicate';
     }
   }
@@ -204,6 +266,23 @@ export function applyFriendLocation(
       sourceNodeId: next.sourceNodeId,
     }),
   );
+
+  recordMeshFlightEvent({
+    type: 'friend_location_applied',
+    message:
+      result === 'stored'
+        ? 'Friend location stored'
+        : 'Friend location updated',
+    level: 'success',
+    data: {
+      result,
+      userId: next.userId,
+      sequence: next.sequence,
+      timestamp: next.timestamp,
+      hops: next.hops,
+      sourceNodeId: next.sourceNodeId,
+    },
+  });
 
   return result;
 }
@@ -252,6 +331,16 @@ export function removeExpiredFriendLocations(
         remaining: locationsByUserId.size,
       }),
     );
+
+    recordMeshFlightEvent({
+      type: 'friend_location_applied',
+      message: 'Expired friend locations removed',
+      level: 'warning',
+      data: {
+        removed,
+        remaining: locationsByUserId.size,
+      },
+    });
   }
 
   return removed;
