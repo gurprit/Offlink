@@ -13,9 +13,9 @@ import QRCode from 'react-native-qrcode-svg';
 import {Button} from '../components/Button';
 import {Card} from '../components/Card';
 import {FriendItem} from '../components/FriendItem';
-import {HomeMapCard} from '../components/HomeMapCard';
+import {FriendMap} from '../components/FriendMap';
 import {ScannerScreen} from './ScannerScreen';
-import {OfflinkFriend, OfflinkProfile} from '../models/types';
+import {OfflinkFriend, OfflinkProfile, OfflinkSighting} from '../models/types';
 import {makeQrPayload, makeShortId, parseFriendInput} from '../services/FriendService';
 import {requestBlePermissions, startBleScanTest, startBleBroadcast, stopBleBroadcastTest, parseBleManufacturerData, startOfflinkScan} from '../services/BleService';
 import {startGattServer, stopGattServer, readGattPayloadFromNearest} from '../services/GattService';
@@ -28,6 +28,7 @@ import {
 import {ALL_EMOJIS} from '../data/emojis';
 import {ensureMeshId} from '../services/MeshIdentityService';
 import type {OfflinkPermissionResult} from '../services/PermissionService';
+import type {OfflinkLocation} from '../services/LocationService';
 
 export function HomeScreen({
   onShowNearby,
@@ -41,6 +42,8 @@ export function HomeScreen({
   onEnableOfflink,
   onOpenOfflinkSettings,
   onCheckOfflinkPermissions,
+  sightings,
+  currentLocation,
 }: {
   onShowNearby?: () => void;
   onShowSightings?: () => void;
@@ -53,6 +56,8 @@ export function HomeScreen({
   onEnableOfflink: () => void;
   onOpenOfflinkSettings: () => void;
   onCheckOfflinkPermissions: () => void;
+  sightings: OfflinkSighting[];
+  currentLocation: OfflinkLocation | null;
 }) {
   const [selectedEmoji, setSelectedEmoji] = useState('');
   const [emojiChoices, setEmojiChoices] = useState<string[]>([]);
@@ -69,6 +74,17 @@ export function HomeScreen({
   const qrValue = useMemo(() => {
     return savedProfile ? makeQrPayload(savedProfile) : '';
   }, [savedProfile]);
+
+  const friendSightings = useMemo(() => {
+    const friendIds = new Set(friends.map(friend => friend.userId));
+
+    return sightings.filter(
+      sighting =>
+        friendIds.has(sighting.userId) &&
+        typeof sighting.latitude === 'number' &&
+        typeof sighting.longitude === 'number',
+    );
+  }, [friends, sightings]);
 
   function handleLogoPress() {
     logoTapCountRef.current += 1;
@@ -351,7 +367,13 @@ export function HomeScreen({
             <Text style={styles.cardTitle}>Welcome to Offlink</Text>
 
             {permissionResult === null ? (
-              <Text style={styles.helper}>
+            <Text
+              style={[
+                styles.helper,
+                {
+                  textAlign: 'left',
+                },
+              ]}>
                 Checking whether Offlink is ready to use...
               </Text>
             ) : (
@@ -403,39 +425,41 @@ export function HomeScreen({
         ) : null}
 
         {permissionResult?.granted && savedProfile ? (
-          <HomeMapCard
-            friendCount={friends.length}
-            status={bleStatus}
-            onPress={() => onShowMap?.()}
+          <FriendMap
+            friendSightings={friendSightings}
+            currentLocation={currentLocation}
+            containerStyle={{
+              height: 440,
+              marginBottom: 24,
+            }}
           />
         ) : null}
 
         {permissionResult?.granted ? (
           <Card>
-            <Text style={styles.cardTitle}>Nearby friends</Text>
-            <Text style={styles.helper}>
-              {bleStatus || 'Preparing Offlink...'}
-            </Text>
+            <Text style={styles.nearbyCardTitle}>Nearby friends</Text>
 
-            <View style={{height: 12}} />
+            <View style={styles.nearbyStatus}>
+              <Text style={styles.nearbyHelper}>
+                {friendSightings.length === 1
+                  ? '1 friend currently shown on the map.'
+                  : `${friendSightings.length} friends currently shown on the map.`}
+              </Text>
+
+              <Text style={styles.nearbyHelper}>
+                {friends.length === 1
+                  ? '1 saved friend.'
+                  : `${friends.length} saved friends.`}
+              </Text>
+
+              <Text style={styles.nearbyHelper}>
+                {bleStatus || 'Preparing Offlink...'}
+              </Text>
+            </View>
 
             <Button
-              label="Show Nearby Friends"
+              label="View Nearby Friends"
               onPress={() => onShowNearby?.()}
-            />
-
-            <View style={{height: 12}} />
-
-            <Button
-              label="Show Map"
-              onPress={() => onShowMap?.()}
-            />
-
-            <View style={{height: 12}} />
-
-            <Button
-              label="Show Sightings"
-              onPress={() => onShowSightings?.()}
             />
           </Card>
         ) : null}
@@ -443,6 +467,13 @@ export function HomeScreen({
         {showDeveloperTools ? (
           <Card>
             <Text style={styles.cardTitle}>Developer Tools</Text>
+
+            <Button
+              label="Show Sightings"
+              onPress={() => onShowSightings?.()}
+            />
+
+            <View style={{height: 12}} />
 
             <Button
               label="Request BLE Permissions"
@@ -660,6 +691,22 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
     marginBottom: 16,
+  },
+  nearbyCardTitle: {
+    color: '#ffffff',
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  nearbyStatus: {
+    marginBottom: 12,
+  },
+  nearbyHelper: {
+    color: '#aaa',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 4,
+    textAlign: 'left',
   },
   onboardingEmoji: {
     fontSize: 46,

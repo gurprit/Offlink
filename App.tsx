@@ -638,6 +638,8 @@ export default function App() {
       onEnableOfflink={handleEnableOfflink}
       onOpenOfflinkSettings={handleOpenOfflinkSettings}
       onCheckOfflinkPermissions={handleCheckOfflinkPermissions}
+      sightings={sightings}
+      currentLocation={currentLocation}
     />
   );
 }
