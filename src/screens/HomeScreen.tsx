@@ -13,6 +13,7 @@ import QRCode from 'react-native-qrcode-svg';
 import {Button} from '../components/Button';
 import {Card} from '../components/Card';
 import {FriendItem} from '../components/FriendItem';
+import {HomeMapCard} from '../components/HomeMapCard';
 import {ScannerScreen} from './ScannerScreen';
 import {OfflinkFriend, OfflinkProfile} from '../models/types';
 import {makeQrPayload, makeShortId, parseFriendInput} from '../services/FriendService';
@@ -399,6 +400,14 @@ export function HomeScreen({
               </>
             )}
           </Card>
+        ) : null}
+
+        {permissionResult?.granted && savedProfile ? (
+          <HomeMapCard
+            friendCount={friends.length}
+            status={bleStatus}
+            onPress={() => onShowMap?.()}
+          />
         ) : null}
 
         {permissionResult?.granted ? (

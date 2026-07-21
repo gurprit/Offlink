@@ -5,66 +5,13 @@ import {
   Text,
   View,
 } from 'react-native';
-import {Camera, MapView, PointAnnotation, UserLocation} from '@maplibre/maplibre-react-native';
 import {Button} from '../components/Button';
+import {FriendMap} from '../components/FriendMap';
 import {OfflinkFriend, OfflinkSighting} from '../models/types';
 import {OfflinkLocation} from '../services/LocationService';
 
-const OFFLINK_TEST_MAP_STYLE = {
-  version: 8,
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '© OpenStreetMap contributors',
-    },
-  },
-  layers: [
-    {
-      id: 'osm-tiles',
-      type: 'raster',
-      source: 'osm',
-    },
-  ],
-};
-
-function getOffsetCoordinate(
-  longitude: number,
-  latitude: number,
-  id: string,
-): [number, number] {
-  const charTotal = id
-    .split('')
-    .reduce((total, char) => total + char.charCodeAt(0), 0);
-
-  const angle = (charTotal % 360) * (Math.PI / 180);
-  const distance = 0.00012;
-
-  return [
-    longitude + Math.cos(angle) * distance,
-    latitude + Math.sin(angle) * distance,
-  ];
-}
-
 function normaliseOfflinkId(value: string): string {
   return value.trim().toUpperCase();
-}
-
-function formatAge(timestamp: number): string {
-  const seconds = Math.max(1, Math.round((Date.now() - timestamp) / 1000));
-
-  if (seconds < 60) {
-    return `${seconds}s ago`;
-  }
-
-  const minutes = Math.round(seconds / 60);
-
-  if (minutes < 60) {
-    return `${minutes}m ago`;
-  }
-
-  return `${Math.round(minutes / 60)}h ago`;
 }
 
 export function MapScreen({
@@ -129,56 +76,10 @@ export function MapScreen({
         </View>
       </View>
 
-      <View style={styles.mapWrap}>
-        <MapView
-          style={styles.map}
-          mapStyle={JSON.stringify(OFFLINK_TEST_MAP_STYLE)}>
-          <Camera
-            zoomLevel={15}
-            centerCoordinate={centerCoordinate}
-          />
-          <UserLocation visible />
-
-          {currentLocation ? (
-            <PointAnnotation
-              id="offlink-you"
-              coordinate={[currentLocation.longitude, currentLocation.latitude]}>
-              <View style={styles.youMarker}>
-                <Text style={styles.youMarkerText}>YOU</Text>
-              </View>
-            </PointAnnotation>
-          ) : null}
-
-          {friendSightings.map(sighting => (
-            <PointAnnotation
-              id={`offlink-friend-${sighting.userId}`}
-              key={sighting.userId}
-              coordinate={getOffsetCoordinate(
-                sighting.longitude!,
-                sighting.latitude!,
-                sighting.userId,
-              )}>
-              <View style={styles.sightingMarker}>
-                <Text style={styles.friendPinEmoji}>{sighting.emoji || '👤'}</Text>
-                <Text style={styles.friendPinLabel}>
-                  {sighting.source === 'direct'
-                    ? `${sighting.emoji || '👤'} · ${formatAge(sighting.lastSeenAt)}`
-                    : `${sighting.emoji || '👤'} · ${sighting.hops || 1} hop · ${formatAge(sighting.lastSeenAt)}`}
-                </Text>
-              </View>
-            </PointAnnotation>
-          ))}
-        </MapView>
-
-        {friendSightings.length === 0 ? (
-          <View style={styles.emptyOverlay}>
-            <Text style={styles.emptyTitle}>No friend pins yet</Text>
-            <Text style={styles.emptyText}>
-              When someone is seen over BLE, their last GPS sighting will appear here.
-            </Text>
-          </View>
-        ) : null}
-      </View>
+      <FriendMap
+        friendSightings={friendSightings}
+        currentLocation={currentLocation}
+      />
 
       <Text style={styles.helper}>
         Online test map for now · offline map tiles come later
