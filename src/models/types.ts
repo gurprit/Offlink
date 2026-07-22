@@ -2,11 +2,13 @@ export type OfflinkProfile = {
   userId: string;
   meshId: string;
   emoji: string;
+  displayName?: string;
 };
 
 export type OfflinkFriend = {
   userId: string;
   emoji: string;
+  displayName?: string;
   addedAt: number;
 };
 
@@ -14,6 +16,7 @@ export type NearbyOfflinkUser = {
   userId: string;
   meshId: string;
   emoji: string;
+  displayName?: string;
   lastSeenAt: number;
   deviceId?: string;
   rssi?: number;
@@ -36,6 +39,7 @@ export type FriendLocationRecord = {
 export type OfflinkSighting = {
   userId: string;
   emoji: string;
+  displayName?: string;
   lastSeenAt: number;
   updatedAt: number;
   seenBy: string;

@@ -23,6 +23,10 @@ export async function loadProfile(): Promise<OfflinkProfile | null> {
     userId: parsed.userId,
     emoji: parsed.emoji,
     meshId: ensureMeshId(parsed.meshId),
+    displayName:
+      typeof parsed.displayName === 'string'
+        ? parsed.displayName.trim().slice(0, 32) || undefined
+        : undefined,
   };
 
   if (profile.meshId !== parsed.meshId) {
@@ -44,7 +48,20 @@ export async function saveProfile(profile: OfflinkProfile): Promise<void> {
 
 export async function loadFriends(): Promise<OfflinkFriend[]> {
   const raw = await AsyncStorage.getItem(FRIENDS_KEY);
-  return raw ? (JSON.parse(raw) as OfflinkFriend[]) : [];
+
+  if (!raw) {
+    return [];
+  }
+
+  const parsed = JSON.parse(raw) as OfflinkFriend[];
+
+  return parsed.map(friend => ({
+    ...friend,
+    displayName:
+      typeof friend.displayName === 'string'
+        ? friend.displayName.trim().slice(0, 32) || undefined
+        : undefined,
+  }));
 }
 
 export async function saveFriends(friends: OfflinkFriend[]): Promise<void> {

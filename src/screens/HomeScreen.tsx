@@ -92,6 +92,7 @@ export function HomeScreen({
   currentLocation: OfflinkLocation | null;
 }) {
   const [selectedEmoji, setSelectedEmoji] = useState('');
+  const [selectedDisplayName, setSelectedDisplayName] = useState('');
   const [emojiChoices, setEmojiChoices] = useState<string[]>([]);
   const [savedProfile, setSavedProfile] = useState<OfflinkProfile | null>(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -192,6 +193,7 @@ export function HomeScreen({
       if (profile) {
         setSavedProfile(profile);
         setSelectedEmoji(profile.emoji || '');
+        setSelectedDisplayName(profile.displayName || '');
         setIsEditingProfile(false);
       } else {
         setIsEditingProfile(true);
@@ -209,10 +211,21 @@ export function HomeScreen({
       return;
     }
 
+    const displayName = selectedDisplayName.trim().slice(0, 32);
+
+    if (!displayName) {
+      Alert.alert(
+        'Add a display name',
+        'Enter the name your friends should see.',
+      );
+      return;
+    }
+
     const profile: OfflinkProfile = {
       userId: savedProfile?.userId || makeShortId(),
       meshId: ensureMeshId(savedProfile?.meshId),
       emoji: selectedEmoji,
+      displayName,
     };
 
     await persistProfile(profile);
@@ -223,6 +236,7 @@ export function HomeScreen({
   function handleEditProfile() {
     if (savedProfile) {
       setSelectedEmoji(savedProfile.emoji || '');
+      setSelectedDisplayName(savedProfile.displayName || '');
     }
 
     generateEmojiChoices();
@@ -289,6 +303,7 @@ export function HomeScreen({
     const friend: OfflinkFriend = {
       userId,
       emoji: '🙂',
+      displayName: undefined,
       addedAt: Date.now(),
     };
 
@@ -565,8 +580,16 @@ export function HomeScreen({
 
                       <View style={styles.nearbyFriendDetails}>
                         <Text style={styles.nearbyFriendName}>
-                          {friend.userId}
+                          {friend.displayName ||
+                            sighting?.displayName ||
+                            friend.userId}
                         </Text>
+
+                        {friend.displayName || sighting?.displayName ? (
+                          <Text style={styles.nearbyFriendId}>
+                            {friend.userId}
+                          </Text>
+                        ) : null}
 
                         <View style={styles.nearbyFriendConnectionRow}>
                           <View
@@ -715,29 +738,57 @@ export function HomeScreen({
         ) : null}
 
         <Card>
-          <Text style={styles.cardTitle}>Your emoji identity</Text>
+          <Text style={styles.cardTitle}>Your profile</Text>
 
           {savedProfile && !isEditingProfile ? (
             <View>
               <View style={styles.profileBox}>
                 <Text style={styles.profileEmoji}>{savedProfile.emoji}</Text>
 
+                <Text style={styles.profileDisplayName}>
+                  {savedProfile.displayName || savedProfile.userId}
+                </Text>
+
                 <Text style={styles.label}>Offlink ID</Text>
                 <Text style={styles.value}>{savedProfile.userId}</Text>
 
                 <Text style={styles.helper}>
-                  Friends will see this emoji when they discover you nearby.
+                  Friends will see this name and emoji when they add you.
                 </Text>
               </View>
 
               <View style={styles.saveButtonWrap}>
-                <Button label="Change Emoji" onPress={handleEditProfile} />
+                <Button label="Edit Profile" onPress={handleEditProfile} />
               </View>
             </View>
           ) : (
             <View>
+              <Text style={styles.inputLabel}>Display name</Text>
+
+              <TextInput
+                value={selectedDisplayName}
+                onChangeText={value =>
+                  setSelectedDisplayName(value.slice(0, 32))
+                }
+                placeholder="Enter your name"
+                placeholderTextColor="#777"
+                autoCapitalize="words"
+                autoCorrect={false}
+                maxLength={32}
+                style={styles.input}
+              />
+
+              <Text style={styles.profileCharacterCount}>
+                {selectedDisplayName.length}/32
+              </Text>
+
+              <Text style={styles.emojiPickerLabel}>
+                Choose your emoji
+              </Text>
+
               <Text style={styles.helper}>
-                Pick one emoji. This is your identity on Offlink.
+                Your name helps friends recognise you. Your emoji makes you
+                easy to spot on the map.
               </Text>
 
               <View style={styles.emojiGrid}>
@@ -757,7 +808,7 @@ export function HomeScreen({
               <Button label="🎲 New Emoji Set" onPress={generateEmojiChoices} />
 
               <View style={styles.saveButtonWrap}>
-                <Button label="Save Emoji Identity" onPress={handleSaveProfile} />
+                <Button label="Save Profile" onPress={handleSaveProfile} />
               </View>
 
               {savedProfile ? (
@@ -938,6 +989,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '900',
   },
+  nearbyFriendId: {
+    color: '#767676',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
   nearbyFriendConnectionRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -1063,6 +1121,31 @@ const styles = StyleSheet.create({
     lineHeight: 124,
     textAlign: 'center',
     marginBottom: 8,
+  },
+  profileDisplayName: {
+    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: '900',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  inputLabel: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  profileCharacterCount: {
+    color: '#666666',
+    fontSize: 11,
+    marginTop: 5,
+    textAlign: 'right',
+  },
+  emojiPickerLabel: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
+    marginTop: 18,
   },
   label: {
     color: '#888',

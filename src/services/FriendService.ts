@@ -10,9 +10,10 @@ export function makeQrPayload(profile: OfflinkProfile) {
   return JSON.stringify({
     app: 'offlink',
     type: 'profile',
-    version: 2,
+    version: 3,
     userId: profile.userId,
     emoji: profile.emoji || DEFAULT_EMOJI,
+    displayName: profile.displayName?.trim() || undefined,
   });
 }
 
@@ -33,7 +34,14 @@ export function parseFriendInput(input: string): OfflinkFriend | null {
     ) {
       return {
         userId: parsed.userId,
-        emoji: typeof parsed.emoji === 'string' && parsed.emoji ? parsed.emoji : DEFAULT_EMOJI,
+        emoji:
+          typeof parsed.emoji === 'string' && parsed.emoji
+            ? parsed.emoji
+            : DEFAULT_EMOJI,
+        displayName:
+          typeof parsed.displayName === 'string'
+            ? parsed.displayName.trim().slice(0, 32) || undefined
+            : undefined,
         addedAt: Date.now(),
       };
     }
