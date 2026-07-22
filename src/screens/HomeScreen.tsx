@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
   Alert,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -12,7 +13,6 @@ import {
 import QRCode from 'react-native-qrcode-svg';
 import {Button} from '../components/Button';
 import {Card} from '../components/Card';
-import {FriendItem} from '../components/FriendItem';
 import {FriendMap} from '../components/FriendMap';
 import {ScannerScreen} from './ScannerScreen';
 import {OfflinkFriend, OfflinkProfile, OfflinkSighting} from '../models/types';
@@ -29,6 +29,38 @@ import {ALL_EMOJIS} from '../data/emojis';
 import {ensureMeshId} from '../services/MeshIdentityService';
 import type {OfflinkPermissionResult} from '../services/PermissionService';
 import type {OfflinkLocation} from '../services/LocationService';
+
+function formatFriendAge(timestamp: number, now: number): string {
+  const seconds = Math.max(1, Math.round((now - timestamp) / 1000));
+
+  if (seconds < 10) {
+    return 'Just now';
+  }
+
+  if (seconds < 60) {
+    return `${seconds}s ago`;
+  }
+
+  const minutes = Math.round(seconds / 60);
+
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.round(minutes / 60);
+
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+function formatFriendHopCount(hops?: number): string {
+  const hopCount = Math.max(1, hops || 1);
+
+  return `${hopCount} ${hopCount === 1 ? 'hop' : 'hops'}`;
+}
 
 export function HomeScreen({
   onShowNearby,
@@ -70,6 +102,7 @@ export function HomeScreen({
   const logoTapCountRef = useRef(0);
   const logoTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [nearestDeviceId, setNearestDeviceId] = useState<string | null>(null);
+  const [friendListNow, setFriendListNow] = useState(Date.now());
 
   const qrValue = useMemo(() => {
     return savedProfile ? makeQrPayload(savedProfile) : '';
@@ -85,6 +118,24 @@ export function HomeScreen({
         typeof sighting.longitude === 'number',
     );
   }, [friends, sightings]);
+
+  const friendRows = useMemo(() => {
+    const sightingByUserId = new Map(
+      friendSightings.map(sighting => [sighting.userId, sighting]),
+    );
+
+    return friends
+      .map(friend => ({
+        friend,
+        sighting: sightingByUserId.get(friend.userId),
+      }))
+      .sort((left, right) => {
+        const leftLastSeen = left.sighting?.lastSeenAt || 0;
+        const rightLastSeen = right.sighting?.lastSeenAt || 0;
+
+        return rightLastSeen - leftLastSeen;
+      });
+  }, [friendSightings, friends]);
 
   function handleLogoPress() {
     logoTapCountRef.current += 1;
@@ -121,6 +172,14 @@ export function HomeScreen({
         clearTimeout(logoTapTimerRef.current);
       }
     };
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setFriendListNow(Date.now());
+    }, 5000);
+
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -238,9 +297,28 @@ export function HomeScreen({
     Alert.alert('Friend added', `${userId} was added.`);
   }
 
-  async function handleRemoveFriend(userId: string) {
-    const nextFriends = friends.filter(friend => friend.userId !== userId);
-    await handleSaveFriends(nextFriends);
+  function handleRemoveFriend(userId: string) {
+    Alert.alert(
+      'Remove friend?',
+      `${userId} will no longer appear on your map or friends list.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            const nextFriends = friends.filter(
+              friend => friend.userId !== userId,
+            );
+
+            void handleSaveFriends(nextFriends);
+          },
+        },
+      ],
+    );
   }
 
   async function handleRequestBlePermissions() {
@@ -437,30 +515,121 @@ export function HomeScreen({
 
         {permissionResult?.granted ? (
           <Card>
-            <Text style={styles.nearbyCardTitle}>Nearby friends</Text>
+            <View style={styles.nearbyHeader}>
+              <Text style={styles.nearbyCardTitle}>Friends</Text>
 
-            <View style={styles.nearbyStatus}>
-              <Text style={styles.nearbyHelper}>
-                {friendSightings.length === 1
-                  ? '1 friend currently shown on the map.'
-                  : `${friendSightings.length} friends currently shown on the map.`}
-              </Text>
-
-              <Text style={styles.nearbyHelper}>
-                {friends.length === 1
-                  ? '1 saved friend.'
-                  : `${friends.length} saved friends.`}
-              </Text>
-
-              <Text style={styles.nearbyHelper}>
-                {bleStatus || 'Preparing Offlink...'}
-              </Text>
+              <View style={styles.nearbyCountBadge}>
+                <Text style={styles.nearbyCountText}>
+                  {friendSightings.length}
+                </Text>
+              </View>
             </View>
 
-            <Button
-              label="View Nearby Friends"
-              onPress={() => onShowNearby?.()}
-            />
+            {friendRows.length === 0 ? (
+              <View style={styles.nearbyEmpty}>
+                <Text style={styles.nearbyEmptyTitle}>
+                  No friends added yet
+                </Text>
+
+                <Text style={styles.nearbyEmptyText}>
+                  Add a friend using their QR code or Offlink ID.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.nearbyFriendList}>
+                {friendRows.map(({friend, sighting}, index) => {
+                  const isDirect = sighting?.source === 'direct';
+                  const isRelayed = Boolean(sighting && !isDirect);
+
+                  return (
+                    <View
+                      key={friend.userId}
+                      style={[
+                        styles.nearbyFriendRow,
+                        index < friendRows.length - 1 &&
+                          styles.nearbyFriendRowBorder,
+                      ]}>
+                      <View
+                        style={[
+                          styles.nearbyFriendEmojiWrap,
+                          isDirect
+                            ? styles.nearbyFriendEmojiDirect
+                            : isRelayed
+                              ? styles.nearbyFriendEmojiRelayed
+                              : styles.nearbyFriendEmojiOffline,
+                        ]}>
+                        <Text style={styles.nearbyFriendEmoji}>
+                          {friend.emoji || sighting?.emoji || '👤'}
+                        </Text>
+                      </View>
+
+                      <View style={styles.nearbyFriendDetails}>
+                        <Text style={styles.nearbyFriendName}>
+                          {friend.userId}
+                        </Text>
+
+                        <View style={styles.nearbyFriendConnectionRow}>
+                          <View
+                            style={[
+                              styles.nearbyFriendDot,
+                              isDirect
+                                ? styles.nearbyFriendDotDirect
+                                : isRelayed
+                                  ? styles.nearbyFriendDotRelayed
+                                  : styles.nearbyFriendDotOffline,
+                            ]}
+                          />
+
+                          <Text
+                            style={[
+                              styles.nearbyFriendConnection,
+                              isRelayed &&
+                                styles.nearbyFriendConnectionRelayed,
+                              !sighting &&
+                                styles.nearbyFriendConnectionOffline,
+                            ]}>
+                            {isDirect
+                              ? 'Direct connection'
+                              : isRelayed
+                                ? `Relayed · ${formatFriendHopCount(
+                                    sighting?.hops,
+                                  )}`
+                                : 'Not currently visible'}
+                          </Text>
+                        </View>
+
+                        {sighting ? (
+                          <Text style={styles.nearbyFriendLastSeen}>
+                            Last seen{' '}
+                            {formatFriendAge(
+                              sighting.lastSeenAt,
+                              friendListNow,
+                            )}
+                          </Text>
+                        ) : null}
+                      </View>
+
+                      <Pressable
+                        accessibilityLabel={`Remove friend ${friend.userId}`}
+                        accessibilityRole="button"
+                        hitSlop={12}
+                        onPress={() => handleRemoveFriend(friend.userId)}
+                        style={({pressed}) => [
+                          styles.nearbyFriendRemove,
+                          pressed && styles.nearbyFriendRemovePressed,
+                        ]}>
+                        <Text style={styles.nearbyFriendRemoveText}>✕</Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            <Text style={styles.nearbyBleStatus}>
+              {bleStatus || 'Preparing Offlink...'}
+            </Text>
+
           </Card>
         ) : null}
 
@@ -640,23 +809,6 @@ export function HomeScreen({
           </Text>
         </Card>
 
-        <Card>
-          <Text style={styles.cardTitle}>Friends</Text>
-
-          {friends.length === 0 ? (
-            <Text style={styles.helper}>
-              No friends added yet. Soon, only these people will appear in nearby discovery.
-            </Text>
-          ) : (
-            friends.map(friend => (
-              <FriendItem
-                key={friend.userId}
-                friend={friend}
-                onRemove={handleRemoveFriend}
-              />
-            ))
-          )}
-        </Card>
       </ScrollView>
     </SafeAreaView>
   );
@@ -692,21 +844,162 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 16,
   },
+  nearbyHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
   nearbyCardTitle: {
     color: '#ffffff',
     fontSize: 22,
     fontWeight: '800',
-    marginBottom: 12,
   },
-  nearbyStatus: {
-    marginBottom: 12,
+  nearbyCountBadge: {
+    alignItems: 'center',
+    backgroundColor: '#242424',
+    borderRadius: 14,
+    justifyContent: 'center',
+    marginLeft: 10,
+    minHeight: 28,
+    minWidth: 28,
+    paddingHorizontal: 8,
   },
-  nearbyHelper: {
-    color: '#aaa',
-    fontSize: 14,
-    lineHeight: 20,
+  nearbyCountText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  nearbyFriendList: {
+    backgroundColor: '#0b0b0b',
+    borderColor: '#242424',
+    borderRadius: 18,
+    borderWidth: 1,
+    marginBottom: 14,
+    overflow: 'hidden',
+  },
+  nearbyFriendRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    minHeight: 92,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  nearbyFriendRowBorder: {
+    borderBottomColor: '#242424',
+    borderBottomWidth: 1,
+  },
+  nearbyFriendEmojiWrap: {
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 25,
+    borderWidth: 3,
+    height: 54,
+    justifyContent: 'center',
+    width: 54,
+  },
+  nearbyFriendEmojiDirect: {
+    borderColor: '#ffffff',
+  },
+  nearbyFriendEmojiRelayed: {
+    borderColor: '#8b5cf6',
+  },
+  nearbyFriendEmojiOffline: {
+    borderColor: '#4b4b4b',
+    opacity: 0.58,
+  },
+  nearbyFriendEmoji: {
+    fontSize: 29,
+    lineHeight: 36,
+    textAlign: 'center',
+  },
+  nearbyFriendDetails: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  nearbyFriendRemove: {
+    alignItems: 'center',
+    borderRadius: 18,
+    height: 36,
+    justifyContent: 'center',
+    marginLeft: 8,
+    width: 36,
+  },
+  nearbyFriendRemovePressed: {
+    backgroundColor: '#242424',
+  },
+  nearbyFriendRemoveText: {
+    color: '#777777',
+    fontSize: 18,
+    fontWeight: '800',
+    lineHeight: 22,
+  },
+  nearbyFriendName: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  nearbyFriendConnectionRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginTop: 5,
+  },
+  nearbyFriendDot: {
+    borderRadius: 4,
+    height: 8,
+    marginRight: 7,
+    width: 8,
+  },
+  nearbyFriendDotDirect: {
+    backgroundColor: '#ffffff',
+  },
+  nearbyFriendDotRelayed: {
+    backgroundColor: '#8b5cf6',
+  },
+  nearbyFriendDotOffline: {
+    backgroundColor: '#555555',
+  },
+  nearbyFriendConnection: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  nearbyFriendConnectionRelayed: {
+    color: '#a78bfa',
+  },
+  nearbyFriendConnectionOffline: {
+    color: '#777777',
+  },
+  nearbyFriendLastSeen: {
+    color: '#909090',
+    fontSize: 12,
+    fontWeight: '600',
     marginTop: 4,
+  },
+  nearbyBleStatus: {
+    color: '#858585',
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 14,
     textAlign: 'left',
+  },
+  nearbyEmpty: {
+    backgroundColor: '#0b0b0b',
+    borderColor: '#242424',
+    borderRadius: 18,
+    borderWidth: 1,
+    marginBottom: 14,
+    padding: 18,
+  },
+  nearbyEmptyTitle: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  nearbyEmptyText: {
+    color: '#8f8f8f',
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 5,
   },
   onboardingEmoji: {
     fontSize: 46,

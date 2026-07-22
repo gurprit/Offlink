@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {
   StyleProp,
   StyleSheet,
@@ -74,11 +74,19 @@ function formatAge(timestamp: number): string {
   return `${Math.round(minutes / 60)}h ago`;
 }
 
+function formatHopCount(hops?: number): string {
+  const hopCount = Math.max(1, hops || 1);
+
+  return `${hopCount} ${hopCount === 1 ? 'hop' : 'hops'}`;
+}
+
 export function FriendMap({
   friendSightings,
   currentLocation,
   containerStyle,
 }: FriendMapProps) {
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+
   const firstFriendSighting = friendSightings[0];
 
   const centerCoordinate: [number, number] = currentLocation
@@ -88,15 +96,18 @@ export function FriendMap({
       ? [firstFriendSighting.longitude, firstFriendSighting.latitude]
       : [-0.1276, 51.5072];
 
+  const handlePinSelected = (userId: string) => {
+    setSelectedUserId(currentUserId =>
+      currentUserId === userId ? null : userId,
+    );
+  };
+
   return (
     <View style={[styles.mapWrap, containerStyle]}>
       <MapView
         style={styles.map}
         mapStyle={JSON.stringify(OFFLINK_TEST_MAP_STYLE)}>
-        <Camera
-          zoomLevel={15}
-          centerCoordinate={centerCoordinate}
-        />
+        <Camera zoomLevel={15} centerCoordinate={centerCoordinate} />
 
         <UserLocation visible />
 
@@ -113,32 +124,81 @@ export function FriendMap({
           </PointAnnotation>
         ) : null}
 
-        {friendSightings.map(sighting => (
-          <PointAnnotation
-            id={`offlink-friend-${sighting.userId}`}
-            key={sighting.userId}
-            coordinate={getOffsetCoordinate(
-              sighting.longitude!,
-              sighting.latitude!,
-              sighting.userId,
-            )}>
-            <View style={styles.sightingMarker}>
-              <Text style={styles.friendPinEmoji}>
-                {sighting.emoji || '👤'}
-              </Text>
+        {friendSightings.map(sighting => {
+          const isSelected = selectedUserId === sighting.userId;
+          const isDirect = sighting.source === 'direct';
 
-              <Text style={styles.friendPinLabel}>
-                {sighting.source === 'direct'
-                  ? `${sighting.emoji || '👤'} · ${formatAge(
-                      sighting.lastSeenAt,
-                    )}`
-                  : `${sighting.emoji || '👤'} · ${
-                      sighting.hops || 1
-                    } hop · ${formatAge(sighting.lastSeenAt)}`}
-              </Text>
-            </View>
-          </PointAnnotation>
-        ))}
+          return (
+            <PointAnnotation
+              id={`offlink-friend-${sighting.userId}`}
+              key={sighting.userId}
+              coordinate={getOffsetCoordinate(
+                sighting.longitude!,
+                sighting.latitude!,
+                sighting.userId,
+              )}
+              onSelected={() => handlePinSelected(sighting.userId)}>
+              <View
+                style={[
+                  styles.sightingMarker,
+                  isSelected && styles.sightingMarkerSelected,
+                ]}>
+                {isSelected ? (
+                  <>
+                    <View
+                      style={[
+                        styles.friendDetailsCard,
+                        isDirect
+                          ? styles.friendDetailsCardDirect
+                          : styles.friendDetailsCardRelayed,
+                      ]}>
+                      <Text style={styles.friendDetailsHeading}>
+                        {sighting.emoji || '👤'} Friend
+                      </Text>
+
+                      <Text
+                        style={[
+                          styles.friendConnectionStatus,
+                          isDirect
+                            ? styles.friendConnectionDirect
+                            : styles.friendConnectionRelayed,
+                        ]}>
+                        {isDirect
+                          ? 'Direct connection'
+                          : `Relayed · ${formatHopCount(sighting.hops)}`}
+                      </Text>
+
+                      <Text style={styles.friendLastSeen}>
+                        Last seen {formatAge(sighting.lastSeenAt)}
+                      </Text>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.cardPointer,
+                        isDirect
+                          ? styles.cardPointerDirect
+                          : styles.cardPointerRelayed,
+                      ]}
+                    />
+                  </>
+                ) : null}
+
+                <View
+                  style={[
+                    styles.friendPin,
+                    isDirect
+                      ? styles.friendPinDirect
+                      : styles.friendPinRelayed,
+                  ]}>
+                  <Text style={styles.friendPinEmoji}>
+                    {sighting.emoji || '👤'}
+                  </Text>
+                </View>
+              </View>
+            </PointAnnotation>
+          );
+        })}
       </MapView>
 
       {friendSightings.length === 0 ? (
@@ -184,34 +244,98 @@ const styles = StyleSheet.create({
   },
   sightingMarker: {
     alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 92,
-    minWidth: 140,
+    justifyContent: 'flex-end',
+    minHeight: 76,
+    minWidth: 76,
   },
-  friendPinEmoji: {
+  sightingMarkerSelected: {
+    minHeight: 176,
+    minWidth: 210,
+  },
+  friendPin: {
+    alignItems: 'center',
     backgroundColor: '#ffffff',
-    borderColor: '#8b5cf6',
     borderRadius: 28,
     borderWidth: 4,
-    color: '#050505',
-    fontSize: 34,
     height: 64,
-    lineHeight: 56,
-    overflow: 'hidden',
-    textAlign: 'center',
+    justifyContent: 'center',
     width: 64,
   },
-  friendPinLabel: {
-    backgroundColor: '#050505',
+  friendPinDirect: {
+    borderColor: '#ffffff',
+  },
+  friendPinRelayed: {
     borderColor: '#8b5cf6',
-    borderRadius: 12,
+  },
+  friendPinEmoji: {
+    color: '#050505',
+    fontSize: 34,
+    lineHeight: 42,
+    textAlign: 'center',
+  },
+  friendDetailsCard: {
+    alignItems: 'center',
+    backgroundColor: '#050505',
+    borderRadius: 16,
     borderWidth: 2,
+    elevation: 10,
+    minWidth: 190,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 5,
+    },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+  },
+  friendDetailsCardDirect: {
+    borderColor: '#ffffff',
+  },
+  friendDetailsCardRelayed: {
+    borderColor: '#8b5cf6',
+  },
+  friendDetailsHeading: {
     color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  friendConnectionStatus: {
     fontSize: 12,
     fontWeight: '900',
-    marginTop: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    marginTop: 5,
+    textAlign: 'center',
+  },
+  friendConnectionDirect: {
+    color: '#ffffff',
+  },
+  friendConnectionRelayed: {
+    color: '#a78bfa',
+  },
+  friendLastSeen: {
+    color: '#b8b8b8',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 3,
+    textAlign: 'center',
+  },
+  cardPointer: {
+    borderLeftColor: 'transparent',
+    borderLeftWidth: 9,
+    borderRightColor: 'transparent',
+    borderRightWidth: 9,
+    borderTopWidth: 10,
+    height: 0,
+    marginBottom: 3,
+    width: 0,
+  },
+  cardPointerDirect: {
+    borderTopColor: '#ffffff',
+  },
+  cardPointerRelayed: {
+    borderTopColor: '#8b5cf6',
   },
   emptyOverlay: {
     alignItems: 'center',
