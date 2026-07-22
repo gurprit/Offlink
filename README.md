@@ -1,35 +1,147 @@
+<div align="center">
+
 # 🛰️ Offlink
 
-> **An experimental offline Bluetooth mesh network for finding friends without internet, mobile signal or Wi-Fi.**
+### Offline Friend Finding over a Self-Organising Bluetooth Mesh Network
+
+**Find friends without internet, mobile signal or Wi-Fi.**
+
+<br>
 
 ![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android)
 ![React Native](https://img.shields.io/badge/React%20Native-TypeScript-61DAFB?logo=react)
-![Status](https://img.shields.io/badge/Status-Experimental-orange)
+![Status](https://img.shields.io/badge/Status-Alpha-yellow)
 ![Mesh](https://img.shields.io/badge/Mesh-Multi--Hop-success)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
+</div>
+
 ---
 
-# Overview
+> [!NOTE]
+> **Offlink is currently in Alpha.**
+>
+> The core networking engine is complete and real-world testing is now underway to improve reliability, scalability and user experience before a wider public release.
 
-Offlink is an experimental Android application that creates an **offline Bluetooth mesh network** capable of sharing friend sightings without mobile data, Wi-Fi or internet.
+---
 
-Nearby devices discover one another using Bluetooth Low Energy before automatically opening Bluetooth GATT sessions to exchange mesh information.
+# 📚 Contents
 
-Each device becomes part of a decentralised network that can relay information across multiple hops, allowing sightings to spread naturally through a crowd.
+- [Overview](#-overview)
+- [Why Offlink?](#-why-offlink)
+- [Screenshots](#-screenshots)
+- [Current Features](#-current-features)
+- [How It Works](#-how-it-works)
+- [Architecture](#-architecture)
+- [Mesh Design](#-mesh-design)
+- [Development Progress](#-development-progress)
+- [Roadmap](#-roadmap)
+- [Technology](#-technology)
+- [Long-Term Vision](#-long-term-vision)
 
-The project is designed for environments where connectivity cannot be relied upon, including:
+---
+
+# 🌍 Overview
+
+Offlink is an Android application that allows friends to locate one another completely offline.
+
+Instead of relying on mobile networks, Wi-Fi or cloud servers, nearby devices discover each other using Bluetooth Low Energy before automatically establishing Bluetooth GATT connections to exchange information.
+
+Each phone becomes part of a decentralised Bluetooth mesh capable of relaying information across multiple hops, allowing friend sightings to spread naturally through a crowd.
+
+As more people use Offlink, the mesh becomes stronger.
+
+No infrastructure.
+
+No servers.
+
+No internet.
+
+---
+
+# 🎯 Why Offlink?
+
+Mobile networks often become unreliable where thousands of people gather.
+
+Whether it's a music festival, sporting event or emergency situation, staying connected can become surprisingly difficult.
+
+Offlink is designed to continue working even when traditional communication cannot.
+
+Typical use cases include:
 
 - 🎵 Music festivals
-- 🏕 Hiking and camping
+- 🏕 Hiking & camping
 - 🏟 Sporting events
-- 🎮 Conventions
-- 🚨 Emergency situations
+- 🎮 Gaming conventions
+- 🚨 Emergency response
 - 🌍 Disaster recovery
 
 ---
 
-# How It Works
+# 📱 Screenshots
+
+> Screenshots will be added alongside the first Google Play Alpha release.
+
+| Friend Map | Friends Dashboard | User Profile |
+|------------|------------------|--------------|
+| Coming Soon | Coming Soon | Coming Soon |
+
+---
+
+# ✨ Current Features
+
+<details open>
+<summary><strong>👤 User Profiles</strong></summary>
+
+- Emoji identity
+- Editable display names
+- QR friend adding
+- Local friend management
+
+</details>
+
+<details open>
+<summary><strong>📍 Friend Tracking</strong></summary>
+
+- Live friend dashboard
+- Offline friend sightings
+- Last seen timestamps
+- Offline map
+- Direct vs relayed friend visibility
+
+</details>
+
+<details open>
+<summary><strong>🛰 Bluetooth Mesh Networking</strong></summary>
+
+- Bluetooth Low Energy discovery
+- Bluetooth GATT synchronisation
+- Dynamic mesh topology
+- Adaptive route selection
+- Multi-hop routing
+- Store-and-forward propagation
+- Packet acknowledgements
+- Duplicate detection
+- Relay decisions
+- Route quality scoring
+- Chunked payload transport
+
+</details>
+
+<details open>
+<summary><strong>🔧 Developer Tools</strong></summary>
+
+- Live mesh diagnostics
+- Mesh topology viewer
+- Flight recorder
+- Network statistics
+- Multi-device testing
+
+</details>
+
+---
+
+# 🔄 How It Works
 
 ```text
 BLE Advertisement
@@ -44,80 +156,88 @@ Mesh Scheduler
 Bluetooth GATT Session
         │
         ▼
-Bidirectional Topology Exchange
+Topology Exchange
         │
         ▼
-Mesh Packet Exchange
+Friend Data Exchange
         │
         ▼
-Merge Friend Sightings
+Merge Mesh Data
         │
         ▼
-Relay Through Mesh
+Relay Across Network
 ```
 
 ---
 
-# Architecture
+# 🏗 Architecture
 
 ```text
-                           Offlink
+                    OFFLINK
 
-                 ┌────────────────────┐
-                 │     Home Screen    │
-                 └──────────┬─────────┘
-                            │
-                            ▼
-                 ┌────────────────────┐
-                 │   BLE Advertising  │
-                 │  Tiny discovery    │
-                 └──────────┬─────────┘
-                            │
-                            ▼
-                 ┌────────────────────┐
-                 │   BLE Discovery    │
-                 └──────────┬─────────┘
-                            │
-                            ▼
-                 ┌────────────────────┐
-                 │   Mesh Scheduler   │
-                 │ Scan • Sync • Wait │
-                 └──────────┬─────────┘
-                            │
-          ┌─────────────────┴──────────────────┐
-          ▼                                    ▼
-┌────────────────────┐              ┌────────────────────┐
-│  Mesh Topology     │              │   GATT Transport   │
-│ Route Selection    │              │ Chunked Payloads   │
-└──────────┬─────────┘              └──────────┬─────────┘
-           │                                   │
-           └──────────────┬────────────────────┘
-                          ▼
-               ┌────────────────────┐
-               │ Mesh Transport     │
-               │ Packet Processing  │
-               └──────────┬─────────┘
-                          ▼
-               ┌────────────────────┐
-               │ Relay Queue        │
-               │ ACK Generation     │
-               └──────────┬─────────┘
-                          ▼
-               ┌────────────────────┐
-               │ Friend Sightings   │
-               │ Offline Database   │
-               └──────────┬─────────┘
-                          ▼
-               ┌────────────────────┐
-               │ Map + Diagnostics  │
-               └────────────────────┘
+            Home Screen + Friend Map
+                     │
+                     ▼
+             BLE Advertising
+                     │
+                     ▼
+             BLE Discovery
+                     │
+                     ▼
+             Mesh Scheduler
+                     │
+      ┌──────────────┴──────────────┐
+      ▼                             ▼
+Mesh Topology                 GATT Transport
+Route Selection             Chunked Payloads
+      │                             │
+      └──────────────┬──────────────┘
+                     ▼
+              Mesh Transport
+             Packet Processing
+                     │
+                     ▼
+              Store & Forward
+              Relay Decisions
+                     │
+                     ▼
+              Friend Database
+                     │
+                     ▼
+        Friend Map • Dashboard • Diagnostics
 ```
 
 ---
 
-# Mesh Transport
+# 🛰 Mesh Design
 
-Each mesh packet contains routing information allowing it to travel across multiple devices.
+> [!TIP]
+> Bluetooth advertisements intentionally remain extremely small.
+>
+> Rich profile information, routing data and friend sightings are exchanged later using Bluetooth GATT.
+
+### BLE Advertisement
+
+```text
+"I exist."
+```
+
+### Bluetooth GATT
+
+```text
+Friend profiles
+Mesh topology
+Friend sightings
+Routing information
+Packet acknowledgements
+Store-and-forward payloads
+```
+
+Keeping BLE advertisements tiny improves compatibility while allowing the mesh protocol to evolve independently.
+
+---
+
+# 📦 Example Mesh Packet
 
 ```json
 {
@@ -128,185 +248,80 @@ Each mesh packet contains routing information allowing it to travel across multi
   "timestamp": 1783787035000,
   "payload": {
     "kind": "sightings",
-    "senderId": "OL-1ABNVZ",
-    "createdAt": 1783787035000,
-    "sightings": [
-      {
-        "userId": "OL-833JLV",
-        "latitude": 51.503,
-        "longitude": -0.119
-      }
-    ]
+    "senderId": "OL-1ABNVZ"
   }
 }
 ```
 
-Packets include:
+Each packet supports:
 
-- Unique IDs
+- Unique packet IDs
 - Duplicate detection
+- Multi-hop routing
 - Time-To-Live (TTL)
-- Hop counting
 - Automatic acknowledgements
 - Relay decisions
 
 ---
 
-# Current Features
+# 📈 Development Progress
 
-| Feature | Status |
-|---------|:------:|
-| BLE Advertising | ✅ |
+| Phase | Status |
+|-------|:------:|
+| Core Android Application | ✅ |
 | BLE Discovery | ✅ |
+| Friend Management | ✅ |
+| Offline Mapping | ✅ |
 | Bluetooth GATT Transport | ✅ |
-| Chunked GATT Payloads (>512 bytes) | ✅ |
+| Chunked Payload Transport | ✅ |
 | Dynamic Mesh Topology | ✅ |
 | Multi-Hop Routing | ✅ |
-| Route Quality Scoring | ✅ |
-| Bidirectional Peer Sessions | ✅ |
-| Packet Relay | ✅ |
-| ACK Generation | ✅ |
-| ACK Relay | ✅ |
-| Duplicate Detection | ✅ |
-| Mesh Scheduler | ✅ |
-| Offline Friend Sightings | ✅ |
-| Offline Map | ✅ |
-| Mesh Diagnostics Screen | ✅ |
+| Adaptive Route Selection | ✅ |
+| Store-and-Forward Networking | ✅ |
+| Friend Location Propagation | ✅ |
+| Mesh Diagnostics | ✅ |
+| Flight Recorder | ✅ |
+| User Profiles | ✅ |
+| Live Friend Dashboard | ✅ |
 | Multi-Device Testing | ✅ |
+| Google Play Alpha | 🚧 |
 
 ---
 
-# Development Progress
+# 🚀 Roadmap
 
-## ✅ Phase 1
+## Alpha
 
-- Project setup
-- React Native
-- Android
-
-## ✅ Phase 2
-
-- BLE discovery
-- BLE advertising
-
-## ✅ Phase 3
-
-- Friend sightings
-- Offline map
-- Local storage
-
-## ✅ Phase 4
-
-- Bluetooth GATT transport
-- Mesh payload exchange
-
-## ✅ Phase 5
-
-### Reliable Mesh Transport
-
-- Reliable GATT sessions
-- Connection throttling
-- Retry logic
-- Connection backoff
-
-### Mesh Topology
-
-- Dynamic neighbour graph
-- Route quality scoring
-- Remote topology exchange
-- Multi-hop routing
-
-### Payload Transport
-
-- Payload multiplexing
-- Payload bundles
-- Chunked GATT transport
-- Large payload support
-
-### Bidirectional Sessions
-
-- Topology upload
-- Topology download
-- ACK creation
-- ACK relay
-- Bidirectional peer synchronisation
+- [x] Bluetooth mesh networking
+- [x] Offline friend tracking
+- [x] Friend profiles
+- [x] Store-and-forward networking
+- [x] Live diagnostics
+- [ ] Large-scale festival testing
 
 ---
 
-# Planned
+## Beta
 
-- 📦 Store-and-forward networking
-- 🚚 Opportunistic delivery
-- 🔒 End-to-end encryption
-- 👥 Group messaging
-- 💬 Offline chat
-- 📍 Friend requests over mesh
-- 📢 Emergency broadcast mode
-- 🔋 Battery optimisation
-- 📈 Delivery statistics
-- 🌍 Large-scale festival testing
+- [ ] End-to-end encryption
+- [ ] Offline messaging
+- [ ] Group support
+- [ ] Friend requests over mesh
+- [ ] Emergency broadcast mode
+- [ ] Battery optimisation
 
 ---
 
-# Design Philosophy
+## Future
 
-Bluetooth advertisements stay intentionally tiny.
-
-```text
-BLE
-
-↓
-
-"I exist."
-```
-
-Everything else happens over Bluetooth GATT.
-
-```text
-GATT
-
-↓
-
-Topology
-Mesh packets
-ACKs
-Friend sightings
-Relay queue
-```
-
-Keeping advertisements small improves compatibility while allowing the mesh protocol to evolve independently.
+- [ ] Smarter routing algorithms
+- [ ] Cross-platform support
+- [ ] Mesh analytics
+- [ ] Delay-tolerant networking improvements
 
 ---
 
-# Long-Term Vision
-
-Imagine a festival with thousands of people.
-
-```text
-🙂────🙂────🙂
-│           │
-🙂────🙂────🙂
-      │
-      ⭐
-```
-
-Alice never comes into Bluetooth range of Bob.
-
-Instead, her location propagates naturally through nearby Offlink users.
-
-Every phone stores, relays and forwards information until it eventually reaches Bob.
-
-No internet.
-
-No servers.
-
-No mobile signal.
-
-Just people carrying information for one another through a self-organising Bluetooth mesh.
-
----
-
-# Technology
+# 💻 Technology
 
 - React Native
 - TypeScript
@@ -317,10 +332,42 @@ Just people carrying information for one another through a self-organising Bluet
 
 ---
 
-# Current Status
+# 🌍 Long-Term Vision
 
-> **Experimental**
+Imagine thousands of people at a music festival.
 
-Offlink now supports reliable Bluetooth mesh communication with dynamic topology discovery, multi-hop routing, chunked payload transport, acknowledgements and live mesh diagnostics.
+```text
+🙂────🙂────🙂
+│           │
+🙂────🙂────🙂
+      │
+      ⭐
+```
 
-The current focus is expanding the network into a fully delay-tolerant **store-and-forward mesh** capable of operating across large crowds and challenging real-world environments.
+Two friends may never come within Bluetooth range of one another.
+
+Instead, every nearby Offlink user becomes part of a decentralised relay network, passing information from phone to phone until it eventually reaches its destination.
+
+The more people running Offlink, the stronger the network becomes.
+
+No internet.
+
+No servers.
+
+No mobile signal.
+
+Just people carrying information for one another.
+
+---
+
+<div align="center">
+
+## ⭐ Help Shape Offlink
+
+Offlink has now reached its **Alpha** milestone and is entering wider real-world testing.
+
+Feedback, bug reports and feature suggestions are always welcome.
+
+If you find the project interesting, consider giving the repository a ⭐.
+
+</div>
