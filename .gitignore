@@ -76,3 +76,6 @@ yarn-error.log
 
 # Local phase backups
 *.bak.phase*
+
+android/app/*.keystore
+android/app/*.jks

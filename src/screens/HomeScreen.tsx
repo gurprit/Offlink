@@ -472,8 +472,7 @@ export function HomeScreen({
             ) : (
               <>
                 <Text style={styles.onboardingText}>
-                  Offlink uses Bluetooth to discover nearby phones and location
-                  to share your position with friends across the offline mesh.
+                 Offlink uses Bluetooth to find nearby phones and share your location with friends, even without mobile signal or internet.
                 </Text>
 
                 <View style={styles.permissionBox}>

@@ -82,8 +82,8 @@ android {
         applicationId "com.offlink"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 5
+        versionName "1.0.5"
     }
     signingConfigs {
         debug {
@@ -92,15 +92,22 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+
+        create("release") {
+            storeFile file(OFFLINK_UPLOAD_STORE_FILE)
+            storePassword OFFLINK_UPLOAD_STORE_PASSWORD
+            keyAlias OFFLINK_UPLOAD_KEY_ALIAS
+            keyPassword OFFLINK_UPLOAD_KEY_PASSWORD
+        }
     }
+
     buildTypes {
         debug {
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.getByName("debug")
         }
+
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.getByName("release")
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }

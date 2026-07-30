@@ -1293,7 +1293,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   _reactNative.AppRegistry.registerComponent(_$$_REQUIRE(_dependencyMap[3], "./app.json").name, function () {
     return _App.default;
   });
-},0,[1,2,615,1083],"index.js");
+},0,[1,2,615,1082],"index.js");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   function _interopRequireDefault(e) {
     return e && e.__esModule ? e : {
@@ -100258,7 +100258,8 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       var profile = {
         userId: parsed.userId,
         emoji: parsed.emoji,
-        meshId: (0, _$$_REQUIRE(_dependencyMap[3], "./MeshIdentityService").ensureMeshId)(parsed.meshId)
+        meshId: (0, _$$_REQUIRE(_dependencyMap[3], "./MeshIdentityService").ensureMeshId)(parsed.meshId),
+        displayName: typeof parsed.displayName === 'string' ? parsed.displayName.trim().slice(0, 32) || undefined : undefined
       };
       if (profile.meshId !== parsed.meshId) {
         yield saveProfile(profile);
@@ -100284,7 +100285,15 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   function _loadFriends() {
     _loadFriends = (0, _asyncToGenerator2.default)(function* () {
       var raw = yield _asyncStorage.default.getItem(FRIENDS_KEY);
-      return raw ? JSON.parse(raw) : [];
+      if (!raw) {
+        return [];
+      }
+      var parsed = JSON.parse(raw);
+      return parsed.map(function (friend) {
+        return Object.assign({}, friend, {
+          displayName: typeof friend.displayName === 'string' ? friend.displayName.trim().slice(0, 32) || undefined : undefined
+        });
+      });
     });
     return _loadFriends.apply(this, arguments);
   }
@@ -106417,10 +106426,12 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     value: true
   });
   exports.FriendMap = FriendMap;
-  var _react = _interopRequireDefault(_$$_REQUIRE(_dependencyMap[1], "react"));
-  var _reactNative = _$$_REQUIRE(_dependencyMap[2], "react-native");
-  var _jsxRuntime = _$$_REQUIRE(_dependencyMap[3], "react/jsx-runtime");
+  var _slicedToArray2 = _interopRequireDefault(_$$_REQUIRE(_dependencyMap[1], "@babel/runtime/helpers/slicedToArray"));
+  var _react = _interopRequireWildcard(_$$_REQUIRE(_dependencyMap[2], "react"));
+  var _reactNative = _$$_REQUIRE(_dependencyMap[3], "react-native");
+  var _jsxRuntime = _$$_REQUIRE(_dependencyMap[4], "react/jsx-runtime");
   var _jsxFileName = "/Volumes/SHINY/Projects/Offlink/src/components/FriendMap.tsx";
+  function _interopRequireWildcard(e, t) { if ("function" == typeof WeakMap) var r = new WeakMap(), n = new WeakMap(); return (_interopRequireWildcard = function _interopRequireWildcard(e, t) { if (!t && e && e.__esModule) return e; var o, i, f = { __proto__: null, default: e }; if (null === e || "object" != typeof e && "function" != typeof e) return f; if (o = t ? n : r) { if (o.has(e)) return o.get(e); o.set(e, f); } for (var _t in e) "default" !== _t && {}.hasOwnProperty.call(e, _t) && ((i = (o = Object.defineProperty) && Object.getOwnPropertyDescriptor(e, _t)) && (i.get || i.set) ? o(f, _t, i) : f[_t] = e[_t]); return f; })(e, t); }
   var OFFLINK_TEST_MAP_STYLE = {
     version: 8,
     sources: {
@@ -106456,24 +106467,37 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }
     return `${Math.round(minutes / 60)}h ago`;
   }
+  function formatHopCount(hops) {
+    var hopCount = Math.max(1, hops || 1);
+    return `${hopCount} ${hopCount === 1 ? 'hop' : 'hops'}`;
+  }
   function FriendMap(_ref) {
     var _this = this;
     var friendSightings = _ref.friendSightings,
       currentLocation = _ref.currentLocation,
       containerStyle = _ref.containerStyle;
+    var _useState = (0, _react.useState)(null),
+      _useState2 = (0, _slicedToArray2.default)(_useState, 2),
+      selectedUserId = _useState2[0],
+      setSelectedUserId = _useState2[1];
     var firstFriendSighting = friendSightings[0];
     var centerCoordinate = currentLocation ? [currentLocation.longitude, currentLocation.latitude] : typeof (firstFriendSighting == null ? void 0 : firstFriendSighting.longitude) === 'number' && typeof (firstFriendSighting == null ? void 0 : firstFriendSighting.latitude) === 'number' ? [firstFriendSighting.longitude, firstFriendSighting.latitude] : [-0.1276, 51.5072];
+    var handlePinSelected = function handlePinSelected(userId) {
+      setSelectedUserId(function (currentUserId) {
+        return currentUserId === userId ? null : userId;
+      });
+    };
     return /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
       style: [styles.mapWrap, containerStyle],
-      children: [/*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[4], "@maplibre/maplibre-react-native").MapView, {
+      children: [/*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[5], "@maplibre/maplibre-react-native").MapView, {
         style: styles.map,
         mapStyle: JSON.stringify(OFFLINK_TEST_MAP_STYLE),
-        children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[4], "@maplibre/maplibre-react-native").Camera, {
+        children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[5], "@maplibre/maplibre-react-native").Camera, {
           zoomLevel: 15,
           centerCoordinate: centerCoordinate
-        }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[4], "@maplibre/maplibre-react-native").UserLocation, {
+        }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[5], "@maplibre/maplibre-react-native").UserLocation, {
           visible: true
-        }), currentLocation ? /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[4], "@maplibre/maplibre-react-native").PointAnnotation, {
+        }), currentLocation ? /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[5], "@maplibre/maplibre-react-native").PointAnnotation, {
           id: "offlink-you",
           coordinate: [currentLocation.longitude, currentLocation.latitude],
           children: /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
@@ -106484,17 +106508,38 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
             })
           })
         }) : null, friendSightings.map(function (sighting) {
-          return /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[4], "@maplibre/maplibre-react-native").PointAnnotation, {
+          var isSelected = selectedUserId === sighting.userId;
+          var isDirect = sighting.source === 'direct';
+          return /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[5], "@maplibre/maplibre-react-native").PointAnnotation, {
             id: `offlink-friend-${sighting.userId}`,
             coordinate: getOffsetCoordinate(sighting.longitude, sighting.latitude, sighting.userId),
+            onSelected: function onSelected() {
+              return handlePinSelected(sighting.userId);
+            },
             children: /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
-              style: styles.sightingMarker,
-              children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
-                style: styles.friendPinEmoji,
-                children: sighting.emoji || '👤'
-              }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
-                style: styles.friendPinLabel,
-                children: sighting.source === 'direct' ? `${sighting.emoji || '👤'} · ${formatAge(sighting.lastSeenAt)}` : `${sighting.emoji || '👤'} · ${sighting.hops || 1} hop · ${formatAge(sighting.lastSeenAt)}`
+              style: [styles.sightingMarker, isSelected && styles.sightingMarkerSelected],
+              children: [isSelected ? /*#__PURE__*/(0, _jsxRuntime.jsxs)(_jsxRuntime.Fragment, {
+                children: [/*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
+                  style: [styles.friendDetailsCard, isDirect ? styles.friendDetailsCardDirect : styles.friendDetailsCardRelayed],
+                  children: [/*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.Text, {
+                    style: styles.friendDetailsHeading,
+                    children: [sighting.emoji || '👤', " Friend"]
+                  }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+                    style: [styles.friendConnectionStatus, isDirect ? styles.friendConnectionDirect : styles.friendConnectionRelayed],
+                    children: isDirect ? 'Direct connection' : `Relayed · ${formatHopCount(sighting.hops)}`
+                  }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.Text, {
+                    style: styles.friendLastSeen,
+                    children: ["Last seen ", formatAge(sighting.lastSeenAt)]
+                  })]
+                }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
+                  style: [styles.cardPointer, isDirect ? styles.cardPointerDirect : styles.cardPointerRelayed]
+                })]
+              }) : null, /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
+                style: [styles.friendPin, isDirect ? styles.friendPinDirect : styles.friendPinRelayed],
+                children: /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+                  style: styles.friendPinEmoji,
+                  children: sighting.emoji || '👤'
+                })
               })]
             })
           }, sighting.userId);
@@ -106540,34 +106585,98 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     },
     sightingMarker: {
       alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: 92,
-      minWidth: 140
+      justifyContent: 'flex-end',
+      minHeight: 76,
+      minWidth: 76
     },
-    friendPinEmoji: {
+    sightingMarkerSelected: {
+      minHeight: 176,
+      minWidth: 210
+    },
+    friendPin: {
+      alignItems: 'center',
       backgroundColor: '#ffffff',
-      borderColor: '#8b5cf6',
       borderRadius: 28,
       borderWidth: 4,
-      color: '#050505',
-      fontSize: 34,
       height: 64,
-      lineHeight: 56,
-      overflow: 'hidden',
-      textAlign: 'center',
+      justifyContent: 'center',
       width: 64
     },
-    friendPinLabel: {
+    friendPinDirect: {
+      borderColor: '#ffffff'
+    },
+    friendPinRelayed: {
+      borderColor: '#8b5cf6'
+    },
+    friendPinEmoji: {
+      color: '#050505',
+      fontSize: 34,
+      lineHeight: 42,
+      textAlign: 'center'
+    },
+    friendDetailsCard: {
+      alignItems: 'center',
       backgroundColor: '#050505',
-      borderColor: '#8b5cf6',
-      borderRadius: 12,
+      borderRadius: 16,
       borderWidth: 2,
+      elevation: 10,
+      minWidth: 190,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      shadowColor: '#000000',
+      shadowOffset: {
+        width: 0,
+        height: 5
+      },
+      shadowOpacity: 0.35,
+      shadowRadius: 8
+    },
+    friendDetailsCardDirect: {
+      borderColor: '#ffffff'
+    },
+    friendDetailsCardRelayed: {
+      borderColor: '#8b5cf6'
+    },
+    friendDetailsHeading: {
       color: '#ffffff',
+      fontSize: 15,
+      fontWeight: '900',
+      textAlign: 'center'
+    },
+    friendConnectionStatus: {
       fontSize: 12,
       fontWeight: '900',
-      marginTop: 4,
-      paddingHorizontal: 8,
-      paddingVertical: 4
+      marginTop: 5,
+      textAlign: 'center'
+    },
+    friendConnectionDirect: {
+      color: '#ffffff'
+    },
+    friendConnectionRelayed: {
+      color: '#a78bfa'
+    },
+    friendLastSeen: {
+      color: '#b8b8b8',
+      fontSize: 11,
+      fontWeight: '700',
+      marginTop: 3,
+      textAlign: 'center'
+    },
+    cardPointer: {
+      borderLeftColor: 'transparent',
+      borderLeftWidth: 9,
+      borderRightColor: 'transparent',
+      borderRightWidth: 9,
+      borderTopWidth: 10,
+      height: 0,
+      marginBottom: 3,
+      width: 0
+    },
+    cardPointerDirect: {
+      borderTopColor: '#ffffff'
+    },
+    cardPointerRelayed: {
+      borderTopColor: '#8b5cf6'
     },
     emptyOverlay: {
       alignItems: 'center',
@@ -106592,7 +106701,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       textAlign: 'center'
     }
   });
-},663,[1,121,2,169,664],"src/components/FriendMap.tsx");
+},663,[1,40,121,2,169,664],"src/components/FriendMap.tsx");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   "use strict";
 
@@ -113151,6 +113260,28 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
   var _jsxRuntime = _$$_REQUIRE(_dependencyMap[7], "react/jsx-runtime");
   var _jsxFileName = "/Volumes/SHINY/Projects/Offlink/src/screens/HomeScreen.tsx";
   function _interopRequireWildcard(e, t) { if ("function" == typeof WeakMap) var r = new WeakMap(), n = new WeakMap(); return (_interopRequireWildcard = function _interopRequireWildcard(e, t) { if (!t && e && e.__esModule) return e; var o, i, f = { __proto__: null, default: e }; if (null === e || "object" != typeof e && "function" != typeof e) return f; if (o = t ? n : r) { if (o.has(e)) return o.get(e); o.set(e, f); } for (var _t in e) "default" !== _t && {}.hasOwnProperty.call(e, _t) && ((i = (o = Object.defineProperty) && Object.getOwnPropertyDescriptor(e, _t)) && (i.get || i.set) ? o(f, _t, i) : f[_t] = e[_t]); return f; })(e, t); }
+  function formatFriendAge(timestamp, now) {
+    var seconds = Math.max(1, Math.round((now - timestamp) / 1000));
+    if (seconds < 10) {
+      return 'Just now';
+    }
+    if (seconds < 60) {
+      return `${seconds}s ago`;
+    }
+    var minutes = Math.round(seconds / 60);
+    if (minutes < 60) {
+      return `${minutes}m ago`;
+    }
+    var hours = Math.round(minutes / 60);
+    if (hours < 24) {
+      return `${hours}h ago`;
+    }
+    return `${Math.round(hours / 24)}d ago`;
+  }
+  function formatFriendHopCount(hops) {
+    var hopCount = Math.max(1, hops || 1);
+    return `${hopCount} ${hopCount === 1 ? 'hop' : 'hops'}`;
+  }
   function HomeScreen(_ref) {
     var _this = this;
     var onShowNearby = _ref.onShowNearby,
@@ -113170,40 +113301,48 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       _useState2 = (0, _slicedToArray2.default)(_useState, 2),
       selectedEmoji = _useState2[0],
       setSelectedEmoji = _useState2[1];
-    var _useState3 = (0, _react.useState)([]),
+    var _useState3 = (0, _react.useState)(''),
       _useState4 = (0, _slicedToArray2.default)(_useState3, 2),
-      emojiChoices = _useState4[0],
-      setEmojiChoices = _useState4[1];
-    var _useState5 = (0, _react.useState)(null),
+      selectedDisplayName = _useState4[0],
+      setSelectedDisplayName = _useState4[1];
+    var _useState5 = (0, _react.useState)([]),
       _useState6 = (0, _slicedToArray2.default)(_useState5, 2),
-      savedProfile = _useState6[0],
-      setSavedProfile = _useState6[1];
-    var _useState7 = (0, _react.useState)(false),
+      emojiChoices = _useState6[0],
+      setEmojiChoices = _useState6[1];
+    var _useState7 = (0, _react.useState)(null),
       _useState8 = (0, _slicedToArray2.default)(_useState7, 2),
-      isEditingProfile = _useState8[0],
-      setIsEditingProfile = _useState8[1];
-    var _useState9 = (0, _react.useState)([]),
+      savedProfile = _useState8[0],
+      setSavedProfile = _useState8[1];
+    var _useState9 = (0, _react.useState)(false),
       _useState0 = (0, _slicedToArray2.default)(_useState9, 2),
-      friends = _useState0[0],
-      setFriends = _useState0[1];
-    var _useState1 = (0, _react.useState)(false),
+      isEditingProfile = _useState0[0],
+      setIsEditingProfile = _useState0[1];
+    var _useState1 = (0, _react.useState)([]),
       _useState10 = (0, _slicedToArray2.default)(_useState1, 2),
-      isScanning = _useState10[0],
-      setIsScanning = _useState10[1];
-    var _useState11 = (0, _react.useState)(''),
+      friends = _useState10[0],
+      setFriends = _useState10[1];
+    var _useState11 = (0, _react.useState)(false),
       _useState12 = (0, _slicedToArray2.default)(_useState11, 2),
-      manualFriendId = _useState12[0],
-      setManualFriendId = _useState12[1];
-    var _useState13 = (0, _react.useState)(false),
+      isScanning = _useState12[0],
+      setIsScanning = _useState12[1];
+    var _useState13 = (0, _react.useState)(''),
       _useState14 = (0, _slicedToArray2.default)(_useState13, 2),
-      showDeveloperTools = _useState14[0],
-      setShowDeveloperTools = _useState14[1];
+      manualFriendId = _useState14[0],
+      setManualFriendId = _useState14[1];
+    var _useState15 = (0, _react.useState)(false),
+      _useState16 = (0, _slicedToArray2.default)(_useState15, 2),
+      showDeveloperTools = _useState16[0],
+      setShowDeveloperTools = _useState16[1];
     var logoTapCountRef = (0, _react.useRef)(0);
     var logoTapTimerRef = (0, _react.useRef)(null);
-    var _useState15 = (0, _react.useState)(null),
-      _useState16 = (0, _slicedToArray2.default)(_useState15, 2),
-      nearestDeviceId = _useState16[0],
-      setNearestDeviceId = _useState16[1];
+    var _useState17 = (0, _react.useState)(null),
+      _useState18 = (0, _slicedToArray2.default)(_useState17, 2),
+      nearestDeviceId = _useState18[0],
+      setNearestDeviceId = _useState18[1];
+    var _useState19 = (0, _react.useState)(Date.now()),
+      _useState20 = (0, _slicedToArray2.default)(_useState19, 2),
+      friendListNow = _useState20[0],
+      setFriendListNow = _useState20[1];
     var qrValue = (0, _react.useMemo)(function () {
       return savedProfile ? (0, _$$_REQUIRE(_dependencyMap[8], "../services/FriendService").makeQrPayload)(savedProfile) : '';
     }, [savedProfile]);
@@ -113215,6 +113354,22 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         return friendIds.has(sighting.userId) && typeof sighting.latitude === 'number' && typeof sighting.longitude === 'number';
       });
     }, [friends, sightings]);
+    var friendRows = (0, _react.useMemo)(function () {
+      var sightingByUserId = new Map(friendSightings.map(function (sighting) {
+        return [sighting.userId, sighting];
+      }));
+      return friends.map(function (friend) {
+        return {
+          friend: friend,
+          sighting: sightingByUserId.get(friend.userId)
+        };
+      }).sort(function (left, right) {
+        var _left$sighting, _right$sighting;
+        var leftLastSeen = ((_left$sighting = left.sighting) == null ? void 0 : _left$sighting.lastSeenAt) || 0;
+        var rightLastSeen = ((_right$sighting = right.sighting) == null ? void 0 : _right$sighting.lastSeenAt) || 0;
+        return rightLastSeen - leftLastSeen;
+      });
+    }, [friendSightings, friends]);
     function handleLogoPress() {
       logoTapCountRef.current += 1;
       if (logoTapTimerRef.current) {
@@ -113249,6 +113404,14 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       };
     }, []);
     (0, _react.useEffect)(function () {
+      var timer = setInterval(function () {
+        setFriendListNow(Date.now());
+      }, 5000);
+      return function () {
+        return clearInterval(timer);
+      };
+    }, []);
+    (0, _react.useEffect)(function () {
       function initialise() {
         return _initialise.apply(this, arguments);
       }
@@ -113260,6 +113423,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
           if (profile) {
             setSavedProfile(profile);
             setSelectedEmoji(profile.emoji || '');
+            setSelectedDisplayName(profile.displayName || '');
             setIsEditingProfile(false);
           } else {
             setIsEditingProfile(true);
@@ -113279,10 +113443,16 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
           _reactNative.Alert.alert('Choose an emoji', 'Select an emoji identity before saving.');
           return;
         }
+        var displayName = selectedDisplayName.trim().slice(0, 32);
+        if (!displayName) {
+          _reactNative.Alert.alert('Add a display name', 'Enter the name your friends should see.');
+          return;
+        }
         var profile = {
           userId: (savedProfile == null ? void 0 : savedProfile.userId) || (0, _$$_REQUIRE(_dependencyMap[8], "../services/FriendService").makeShortId)(),
           meshId: (0, _$$_REQUIRE(_dependencyMap[11], "../services/MeshIdentityService").ensureMeshId)(savedProfile == null ? void 0 : savedProfile.meshId),
-          emoji: selectedEmoji
+          emoji: selectedEmoji,
+          displayName: displayName
         };
         yield (0, _$$_REQUIRE(_dependencyMap[10], "../services/StorageService").saveProfile)(profile);
         setSavedProfile(profile);
@@ -113293,6 +113463,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     function handleEditProfile() {
       if (savedProfile) {
         setSelectedEmoji(savedProfile.emoji || '');
+        setSelectedDisplayName(savedProfile.displayName || '');
       }
       generateEmojiChoices();
       setIsEditingProfile(true);
@@ -113367,6 +113538,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         var friend = {
           userId: userId,
           emoji: '🙂',
+          displayName: undefined,
           addedAt: Date.now()
         };
         yield handleSaveFriends([].concat((0, _toConsumableArray2.default)(friends), [friend]));
@@ -113375,17 +113547,20 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       });
       return _handleAddManualFriend.apply(this, arguments);
     }
-    function handleRemoveFriend(_x4) {
-      return _handleRemoveFriend.apply(this, arguments);
-    }
-    function _handleRemoveFriend() {
-      _handleRemoveFriend = (0, _asyncToGenerator2.default)(function* (userId) {
-        var nextFriends = friends.filter(function (friend) {
-          return friend.userId !== userId;
-        });
-        yield handleSaveFriends(nextFriends);
-      });
-      return _handleRemoveFriend.apply(this, arguments);
+    function handleRemoveFriend(userId) {
+      _reactNative.Alert.alert('Remove friend?', `${userId} will no longer appear on your map or friends list.`, [{
+        text: 'Cancel',
+        style: 'cancel'
+      }, {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: function onPress() {
+          var nextFriends = friends.filter(function (friend) {
+            return friend.userId !== userId;
+          });
+          void handleSaveFriends(nextFriends);
+        }
+      }]);
     }
     function handleRequestBlePermissions() {
       return _handleRequestBlePermissions.apply(this, arguments);
@@ -113542,7 +113717,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
           }) : /*#__PURE__*/(0, _jsxRuntime.jsxs)(_jsxRuntime.Fragment, {
             children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
               style: styles.onboardingText,
-              children: "Offlink uses Bluetooth to discover nearby phones and location to share your position with friends across the offline mesh."
+              children: "Offlink uses Bluetooth to find nearby phones and share your location with friends, even without mobile signal or internet."
             }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
               style: styles.permissionBox,
               children: [/*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.Text, {
@@ -113581,26 +113756,83 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
             marginBottom: 24
           }
         }) : null, permissionResult != null && permissionResult.granted ? /*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[15], "../components/Card").Card, {
-          children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
-            style: styles.nearbyCardTitle,
-            children: "Nearby friends"
-          }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
-            style: styles.nearbyStatus,
+          children: [/*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
+            style: styles.nearbyHeader,
             children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
-              style: styles.nearbyHelper,
-              children: friendSightings.length === 1 ? '1 friend currently shown on the map.' : `${friendSightings.length} friends currently shown on the map.`
-            }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
-              style: styles.nearbyHelper,
-              children: friends.length === 1 ? '1 saved friend.' : `${friends.length} saved friends.`
-            }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
-              style: styles.nearbyHelper,
-              children: bleStatus || 'Preparing Offlink...'
+              style: styles.nearbyCardTitle,
+              children: "Friends"
+            }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
+              style: styles.nearbyCountBadge,
+              children: /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+                style: styles.nearbyCountText,
+                children: friendSightings.length
+              })
             })]
-          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[16], "../components/Button").Button, {
-            label: "View Nearby Friends",
-            onPress: function onPress() {
-              return onShowNearby == null ? void 0 : onShowNearby();
-            }
+          }), friendRows.length === 0 ? /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
+            style: styles.nearbyEmpty,
+            children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+              style: styles.nearbyEmptyTitle,
+              children: "No friends added yet"
+            }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+              style: styles.nearbyEmptyText,
+              children: "Add a friend using their QR code or Offlink ID."
+            })]
+          }) : /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
+            style: styles.nearbyFriendList,
+            children: friendRows.map(function (_ref2, index) {
+              var friend = _ref2.friend,
+                sighting = _ref2.sighting;
+              var isDirect = (sighting == null ? void 0 : sighting.source) === 'direct';
+              var isRelayed = Boolean(sighting && !isDirect);
+              return /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
+                style: [styles.nearbyFriendRow, index < friendRows.length - 1 && styles.nearbyFriendRowBorder],
+                children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
+                  style: [styles.nearbyFriendEmojiWrap, isDirect ? styles.nearbyFriendEmojiDirect : isRelayed ? styles.nearbyFriendEmojiRelayed : styles.nearbyFriendEmojiOffline],
+                  children: /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+                    style: styles.nearbyFriendEmoji,
+                    children: friend.emoji || (sighting == null ? void 0 : sighting.emoji) || '👤'
+                  })
+                }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
+                  style: styles.nearbyFriendDetails,
+                  children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+                    style: styles.nearbyFriendName,
+                    children: friend.displayName || (sighting == null ? void 0 : sighting.displayName) || friend.userId
+                  }), friend.displayName || sighting != null && sighting.displayName ? /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+                    style: styles.nearbyFriendId,
+                    children: friend.userId
+                  }) : null, /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
+                    style: styles.nearbyFriendConnectionRow,
+                    children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
+                      style: [styles.nearbyFriendDot, isDirect ? styles.nearbyFriendDotDirect : isRelayed ? styles.nearbyFriendDotRelayed : styles.nearbyFriendDotOffline]
+                    }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+                      style: [styles.nearbyFriendConnection, isRelayed && styles.nearbyFriendConnectionRelayed, !sighting && styles.nearbyFriendConnectionOffline],
+                      children: isDirect ? 'Direct connection' : isRelayed ? `Relayed · ${formatFriendHopCount(sighting == null ? void 0 : sighting.hops)}` : 'Not currently visible'
+                    })]
+                  }), sighting ? /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.Text, {
+                    style: styles.nearbyFriendLastSeen,
+                    children: ["Last seen", ' ', formatFriendAge(sighting.lastSeenAt, friendListNow)]
+                  }) : null]
+                }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Pressable, {
+                  accessibilityLabel: `Remove friend ${friend.userId}`,
+                  accessibilityRole: "button",
+                  hitSlop: 12,
+                  onPress: function onPress() {
+                    return handleRemoveFriend(friend.userId);
+                  },
+                  style: function style(_ref3) {
+                    var pressed = _ref3.pressed;
+                    return [styles.nearbyFriendRemove, pressed && styles.nearbyFriendRemovePressed];
+                  },
+                  children: /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+                    style: styles.nearbyFriendRemoveText,
+                    children: "\u2715"
+                  })
+                })]
+              }, friend.userId);
+            })
+          }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+            style: styles.nearbyBleStatus,
+            children: bleStatus || 'Preparing Offlink...'
           })]
         }) : null, showDeveloperTools ? /*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[15], "../components/Card").Card, {
           children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
@@ -113687,13 +113919,16 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         }) : null, /*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[15], "../components/Card").Card, {
           children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
             style: styles.cardTitle,
-            children: "Your emoji identity"
+            children: "Your profile"
           }), savedProfile && !isEditingProfile ? /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
             children: [/*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
               style: styles.profileBox,
               children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
                 style: styles.profileEmoji,
                 children: savedProfile.emoji
+              }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+                style: styles.profileDisplayName,
+                children: savedProfile.displayName || savedProfile.userId
               }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
                 style: styles.label,
                 children: "Offlink ID"
@@ -113702,19 +113937,39 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
                 children: savedProfile.userId
               }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
                 style: styles.helper,
-                children: "Friends will see this emoji when they discover you nearby."
+                children: "Friends will see this name and emoji when they add you."
               })]
             }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
               style: styles.saveButtonWrap,
               children: /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[16], "../components/Button").Button, {
-                label: "Change Emoji",
+                label: "Edit Profile",
                 onPress: handleEditProfile
               })
             })]
           }) : /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
             children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+              style: styles.inputLabel,
+              children: "Display name"
+            }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.TextInput, {
+              value: selectedDisplayName,
+              onChangeText: function onChangeText(value) {
+                return setSelectedDisplayName(value.slice(0, 32));
+              },
+              placeholder: "Enter your name",
+              placeholderTextColor: "#777",
+              autoCapitalize: "words",
+              autoCorrect: false,
+              maxLength: 32,
+              style: styles.input
+            }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.Text, {
+              style: styles.profileCharacterCount,
+              children: [selectedDisplayName.length, "/32"]
+            }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
+              style: styles.emojiPickerLabel,
+              children: "Choose your emoji"
+            }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
               style: styles.helper,
-              children: "Pick one emoji. This is your identity on Offlink."
+              children: "Your name helps friends recognise you. Your emoji makes you easy to spot on the map."
             }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
               style: styles.emojiGrid,
               children: emojiChoices.map(function (emoji) {
@@ -113732,7 +113987,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
             }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
               style: styles.saveButtonWrap,
               children: /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[16], "../components/Button").Button, {
-                label: "Save Emoji Identity",
+                label: "Save Profile",
                 onPress: handleSaveProfile
               })
             }), savedProfile ? /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.View, {
@@ -113792,19 +114047,6 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
             style: styles.helper,
             children: "Scan a QR code or manually enter an Offlink ID."
           })]
-        }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_$$_REQUIRE(_dependencyMap[15], "../components/Card").Card, {
-          children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
-            style: styles.cardTitle,
-            children: "Friends"
-          }), friends.length === 0 ? /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
-            style: styles.helper,
-            children: "No friends added yet. Soon, only these people will appear in nearby discovery."
-          }) : friends.map(function (friend) {
-            return /*#__PURE__*/(0, _jsxRuntime.jsx)(_$$_REQUIRE(_dependencyMap[18], "../components/FriendItem").FriendItem, {
-              friend: friend,
-              onRemove: handleRemoveFriend
-            }, friend.userId);
-          })]
         })]
       })]
     });
@@ -113839,21 +114081,169 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       fontWeight: '800',
       marginBottom: 16
     },
+    nearbyHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      marginBottom: 12
+    },
     nearbyCardTitle: {
       color: '#ffffff',
       fontSize: 22,
+      fontWeight: '800'
+    },
+    nearbyCountBadge: {
+      alignItems: 'center',
+      backgroundColor: '#242424',
+      borderRadius: 14,
+      justifyContent: 'center',
+      marginLeft: 10,
+      minHeight: 28,
+      minWidth: 28,
+      paddingHorizontal: 8
+    },
+    nearbyCountText: {
+      color: '#ffffff',
+      fontSize: 13,
+      fontWeight: '900'
+    },
+    nearbyFriendList: {
+      backgroundColor: '#0b0b0b',
+      borderColor: '#242424',
+      borderRadius: 18,
+      borderWidth: 1,
+      marginBottom: 14,
+      overflow: 'hidden'
+    },
+    nearbyFriendRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      minHeight: 92,
+      paddingHorizontal: 14,
+      paddingVertical: 14
+    },
+    nearbyFriendRowBorder: {
+      borderBottomColor: '#242424',
+      borderBottomWidth: 1
+    },
+    nearbyFriendEmojiWrap: {
+      alignItems: 'center',
+      backgroundColor: '#ffffff',
+      borderRadius: 25,
+      borderWidth: 3,
+      height: 54,
+      justifyContent: 'center',
+      width: 54
+    },
+    nearbyFriendEmojiDirect: {
+      borderColor: '#ffffff'
+    },
+    nearbyFriendEmojiRelayed: {
+      borderColor: '#8b5cf6'
+    },
+    nearbyFriendEmojiOffline: {
+      borderColor: '#4b4b4b',
+      opacity: 0.58
+    },
+    nearbyFriendEmoji: {
+      fontSize: 29,
+      lineHeight: 36,
+      textAlign: 'center'
+    },
+    nearbyFriendDetails: {
+      flex: 1,
+      marginLeft: 14
+    },
+    nearbyFriendRemove: {
+      alignItems: 'center',
+      borderRadius: 18,
+      height: 36,
+      justifyContent: 'center',
+      marginLeft: 8,
+      width: 36
+    },
+    nearbyFriendRemovePressed: {
+      backgroundColor: '#242424'
+    },
+    nearbyFriendRemoveText: {
+      color: '#777777',
+      fontSize: 18,
       fontWeight: '800',
-      marginBottom: 12
+      lineHeight: 22
     },
-    nearbyStatus: {
-      marginBottom: 12
+    nearbyFriendName: {
+      color: '#ffffff',
+      fontSize: 16,
+      fontWeight: '900'
     },
-    nearbyHelper: {
-      color: '#aaa',
-      fontSize: 14,
-      lineHeight: 20,
-      marginTop: 4,
+    nearbyFriendId: {
+      color: '#767676',
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+      marginTop: 2
+    },
+    nearbyFriendConnectionRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      marginTop: 5
+    },
+    nearbyFriendDot: {
+      borderRadius: 4,
+      height: 8,
+      marginRight: 7,
+      width: 8
+    },
+    nearbyFriendDotDirect: {
+      backgroundColor: '#ffffff'
+    },
+    nearbyFriendDotRelayed: {
+      backgroundColor: '#8b5cf6'
+    },
+    nearbyFriendDotOffline: {
+      backgroundColor: '#555555'
+    },
+    nearbyFriendConnection: {
+      color: '#ffffff',
+      fontSize: 13,
+      fontWeight: '800'
+    },
+    nearbyFriendConnectionRelayed: {
+      color: '#a78bfa'
+    },
+    nearbyFriendConnectionOffline: {
+      color: '#777777'
+    },
+    nearbyFriendLastSeen: {
+      color: '#909090',
+      fontSize: 12,
+      fontWeight: '600',
+      marginTop: 4
+    },
+    nearbyBleStatus: {
+      color: '#858585',
+      fontSize: 12,
+      lineHeight: 18,
+      marginBottom: 14,
       textAlign: 'left'
+    },
+    nearbyEmpty: {
+      backgroundColor: '#0b0b0b',
+      borderColor: '#242424',
+      borderRadius: 18,
+      borderWidth: 1,
+      marginBottom: 14,
+      padding: 18
+    },
+    nearbyEmptyTitle: {
+      color: '#ffffff',
+      fontSize: 16,
+      fontWeight: '900'
+    },
+    nearbyEmptyText: {
+      color: '#8f8f8f',
+      fontSize: 13,
+      lineHeight: 19,
+      marginTop: 5
     },
     onboardingEmoji: {
       fontSize: 46,
@@ -113918,6 +114308,31 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       textAlign: 'center',
       marginBottom: 8
     },
+    profileDisplayName: {
+      color: '#ffffff',
+      fontSize: 24,
+      fontWeight: '900',
+      marginBottom: 8,
+      textAlign: 'center'
+    },
+    inputLabel: {
+      color: '#ffffff',
+      fontSize: 14,
+      fontWeight: '800',
+      marginBottom: 8
+    },
+    profileCharacterCount: {
+      color: '#666666',
+      fontSize: 11,
+      marginTop: 5,
+      textAlign: 'right'
+    },
+    emojiPickerLabel: {
+      color: '#ffffff',
+      fontSize: 14,
+      fontWeight: '800',
+      marginTop: 18
+    },
     label: {
       color: '#888',
       fontSize: 13,
@@ -113956,7 +114371,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
       marginBottom: 12
     }
   });
-},726,[1,165,6,40,121,2,727,169,1038,649,625,626,647,636,1039,1081,661,663,1082],"src/screens/HomeScreen.tsx");
+},726,[1,165,6,40,121,2,727,169,1038,649,625,626,647,636,1039,1081,661,663],"src/screens/HomeScreen.tsx");
 __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
   var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
   Object.defineProperty(exports, "__esModule", {
@@ -154148,12 +154563,14 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     return 'OL-' + Math.random().toString(36).slice(2, 8).toUpperCase();
   }
   function makeQrPayload(profile) {
+    var _profile$displayName;
     return JSON.stringify({
       app: 'offlink',
       type: 'profile',
-      version: 2,
+      version: 3,
       userId: profile.userId,
-      emoji: profile.emoji || DEFAULT_EMOJI
+      emoji: profile.emoji || DEFAULT_EMOJI,
+      displayName: ((_profile$displayName = profile.displayName) == null ? void 0 : _profile$displayName.trim()) || undefined
     });
   }
   function parseFriendInput(input) {
@@ -154167,6 +154584,7 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
         return {
           userId: parsed.userId,
           emoji: typeof parsed.emoji === 'string' && parsed.emoji ? parsed.emoji : DEFAULT_EMOJI,
+          displayName: typeof parsed.displayName === 'string' ? parsed.displayName.trim().slice(0, 32) || undefined : undefined,
           addedAt: Date.now()
         };
       }
@@ -157240,94 +157658,12 @@ __d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, e
     }
   });
 },1081,[1,121,2,169],"src/components/Card.tsx");
-__d(function (global, _$$_REQUIRE, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {
-  var _interopRequireDefault = _$$_REQUIRE(_dependencyMap[0], "@babel/runtime/helpers/interopRequireDefault");
-  Object.defineProperty(exports, "__esModule", {
-    value: true
-  });
-  exports.FriendItem = FriendItem;
-  var _react = _interopRequireDefault(_$$_REQUIRE(_dependencyMap[1], "react"));
-  var _reactNative = _$$_REQUIRE(_dependencyMap[2], "react-native");
-  var _jsxRuntime = _$$_REQUIRE(_dependencyMap[3], "react/jsx-runtime");
-  var _jsxFileName = "/Volumes/SHINY/Projects/Offlink/src/components/FriendItem.tsx";
-  function FriendItem(_ref) {
-    var friend = _ref.friend,
-      onRemove = _ref.onRemove;
-    return /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
-      style: styles.friendRow,
-      children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
-        style: styles.friendEmoji,
-        children: friend.emoji
-      }), /*#__PURE__*/(0, _jsxRuntime.jsxs)(_reactNative.View, {
-        style: styles.friendTextWrap,
-        children: [/*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
-          style: styles.friendName,
-          children: friend.userId
-        }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
-          style: styles.friendId,
-          children: "Added friend"
-        })]
-      }), /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.TouchableOpacity, {
-        style: styles.deleteButton,
-        onPress: function onPress() {
-          return onRemove(friend.userId);
-        },
-        children: /*#__PURE__*/(0, _jsxRuntime.jsx)(_reactNative.Text, {
-          style: styles.deleteText,
-          children: "Remove"
-        })
-      })]
-    });
-  }
-  var styles = _reactNative.StyleSheet.create({
-    friendRow: {
-      backgroundColor: '#0b0b0b',
-      borderRadius: 18,
-      padding: 14,
-      marginBottom: 10,
-      borderWidth: 1,
-      borderColor: '#262626',
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between'
-    },
-    friendEmoji: {
-      fontSize: 38,
-      marginRight: 12
-    },
-    friendTextWrap: {
-      flex: 1,
-      paddingRight: 12
-    },
-    friendName: {
-      color: '#ffffff',
-      fontSize: 18,
-      fontWeight: '800'
-    },
-    friendId: {
-      color: '#888',
-      fontSize: 13,
-      marginTop: 4
-    },
-    deleteButton: {
-      borderWidth: 1,
-      borderColor: '#555',
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 8
-    },
-    deleteText: {
-      color: '#fff',
-      fontWeight: '800'
-    }
-  });
-},1082,[1,121,2,169],"src/components/FriendItem.tsx");
 __d(function(global, require, _importDefaultUnused, _importAllUnused, module, exports, _dependencyMapUnused) {
   module.exports = {
   "name": "Offlink",
   "displayName": "Offlink"
 }
 ;
-},1083,[],"app.json");
+},1082,[],"app.json");
 __r(64);
 __r(0);
