@@ -56,6 +56,23 @@ export function parseBleManufacturerData(manufacturerData: string | null | undef
 }
 const bleManager = new BleManager();
 
+// Android's advertiser start/stop calls are asynchronous. Offlink can request a
+// restart while an earlier session cleanup is still stopping the advertiser,
+// which can otherwise leave the newly-started broadcast immediately stopped.
+// Keep advertiser mutations strictly ordered so the newest requested state wins.
+let bleAdvertiserOperation: Promise<void> = Promise.resolve();
+
+function queueBleAdvertiserOperation(
+  operation: () => Promise<void>,
+): Promise<void> {
+  const nextOperation = bleAdvertiserOperation
+    .catch(() => {})
+    .then(operation);
+
+  bleAdvertiserOperation = nextOperation.catch(() => {});
+  return nextOperation;
+}
+
 function encodeEmojiForBle(emoji: string): string {
   const index = ALL_EMOJIS.indexOf(emoji || '🙂');
   return String(index >= 0 ? index : 0);
@@ -179,21 +196,23 @@ export async function startBleBroadcast(
   profile: OfflinkProfile,
   location?: OfflinkLocation | null,
 ): Promise<void> {
-  BLEAdvertiser.setCompanyId(OFFLINK_COMPANY_ID);
+  return queueBleAdvertiserOperation(async () => {
+    BLEAdvertiser.setCompanyId(OFFLINK_COMPANY_ID);
 
-  await BLEAdvertiser.stopBroadcast().catch(() => {});
+    await BLEAdvertiser.stopBroadcast().catch(() => {});
 
-  await BLEAdvertiser.broadcast(
-    OFFLINK_SERVICE_UUID,
-    stringToByteArray(makeBlePayload(profile, location)),
-    {
-      advertiseMode: 2,
-      txPowerLevel: 3,
-      connectable: true,
-      includeDeviceName: false,
-      includeTxPowerLevel: false,
-    },
-  );
+    await BLEAdvertiser.broadcast(
+      OFFLINK_SERVICE_UUID,
+      stringToByteArray(makeBlePayload(profile, location)),
+      {
+        advertiseMode: 2,
+        txPowerLevel: 3,
+        connectable: true,
+        includeDeviceName: false,
+        includeTxPowerLevel: false,
+      },
+    );
+  });
 }
 
 export async function startBleBroadcastTest(): Promise<void> {
@@ -205,7 +224,9 @@ export async function startBleBroadcastTest(): Promise<void> {
 }
 
 export async function stopBleBroadcastTest(): Promise<void> {
-  await BLEAdvertiser.stopBroadcast();
+  return queueBleAdvertiserOperation(async () => {
+    await BLEAdvertiser.stopBroadcast();
+  });
 }
 
 
