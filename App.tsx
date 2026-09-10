@@ -308,6 +308,40 @@ export default function App() {
     };
   }, [permissionRestartKey]);
 
+  useEffect(() => {
+    if (ownUserId) {
+      return;
+    }
+
+    let cancelled = false;
+    let restartRequested = false;
+
+    const profileWatcher = setInterval(() => {
+      if (restartRequested) {
+        return;
+      }
+
+      loadProfile()
+        .then(profile => {
+          if (cancelled || restartRequested || !profile) {
+            return;
+          }
+
+          restartRequested = true;
+          setBleStatus('Preparing Offlink...');
+          setPermissionRestartKey(current => current + 1);
+        })
+        .catch(error =>
+          console.log('OFFLINK_PROFILE_WATCH_ERROR', String(error)),
+        );
+    }, 500);
+
+    return () => {
+      cancelled = true;
+      clearInterval(profileWatcher);
+    };
+  }, [ownUserId]);
+
   async function handleEnableOfflink() {
     setBleStatus('Requesting Android permissions...');
 
