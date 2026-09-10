@@ -29,7 +29,6 @@ import {
 import {
   createFriendLocationsEnvelope,
   createMeshPayload,
-  stringifyMeshEnvelope,
 } from './src/services/MeshSyncService';
 import {
   enqueueRelayPacket,
@@ -204,15 +203,24 @@ export default function App() {
                 );
               }
             }
-
-            startBleBroadcast(savedProfile, location).catch(error =>
-              console.log('OFFLINK_BROADCAST_LOCATION_ERROR', error),
-            );
           },
           error => console.log('OFFLINK_LOCATION_WATCH_ERROR', error),
         );
 
-        await startBleBroadcast(savedProfile, currentLocationRef.current);
+        console.log(
+          'OFFLINK_BLE_SESSION_BROADCAST_START',
+          JSON.stringify({
+            userId: savedProfile.userId,
+            meshId: savedProfile.meshId,
+          }),
+        );
+
+        await startBleBroadcast(savedProfile);
+
+        console.log(
+          'OFFLINK_BLE_SESSION_BROADCAST_READY',
+          savedProfile.userId,
+        );
 
         await startGattServer(
           createMeshPayload(savedProfile.userId, sightingsRef.current),
@@ -569,7 +577,7 @@ export default function App() {
         emoji: user.emoji,
         lastSeenAt: user.lastSeenAt,
         updatedAt: Date.now(),
-        seenBy: ownUserId || 'unknown',
+        seenBy: ownUserIdRef.current || 'unknown',
         source: 'direct',
         rssi: user.rssi,
         hops: 0,
@@ -595,7 +603,6 @@ export default function App() {
       console.log('OFFLINK_MESH_DISPATCH_ERROR', String(error)),
     );
 
-    // GATT topology sync is handled by the serial heartbeat.
     setFriends(currentFriends => {
       const didFindFriend = currentFriends.some(
         friend => friend.userId === user.userId,
