@@ -61,13 +61,46 @@ const bleManager = new BleManager();
 // which can otherwise leave the newly-started broadcast immediately stopped.
 // Keep advertiser mutations strictly ordered so the newest requested state wins.
 let bleAdvertiserOperation: Promise<void> = Promise.resolve();
+let bleAdvertiserOperationId = 0;
 
 function queueBleAdvertiserOperation(
-  operation: () => Promise<void>,
+  operationName: string,
+  operation: (operationId: number) => Promise<void>,
 ): Promise<void> {
+  const operationId = ++bleAdvertiserOperationId;
+
+  console.log(
+    'OFFLINK_BLE_OPERATION_QUEUED',
+    JSON.stringify({operationId, operationName}),
+  );
+
   const nextOperation = bleAdvertiserOperation
     .catch(() => {})
-    .then(operation);
+    .then(async () => {
+      console.log(
+        'OFFLINK_BLE_OPERATION_START',
+        JSON.stringify({operationId, operationName}),
+      );
+
+      try {
+        await operation(operationId);
+
+        console.log(
+          'OFFLINK_BLE_OPERATION_SUCCESS',
+          JSON.stringify({operationId, operationName}),
+        );
+      } catch (error) {
+        console.log(
+          'OFFLINK_BLE_OPERATION_ERROR',
+          JSON.stringify({
+            operationId,
+            operationName,
+            error: String(error),
+          }),
+        );
+        throw error;
+      }
+    });
 
   bleAdvertiserOperation = nextOperation.catch(() => {});
   return nextOperation;
@@ -196,10 +229,34 @@ export async function startBleBroadcast(
   profile: OfflinkProfile,
   location?: OfflinkLocation | null,
 ): Promise<void> {
-  return queueBleAdvertiserOperation(async () => {
+  console.log(
+    'OFFLINK_BROADCAST_REQUESTED',
+    JSON.stringify({
+      userId: profile.userId,
+      meshId: profile.meshId,
+      hasLocation: Boolean(location),
+      payload: makeBlePayload(profile, location),
+    }),
+  );
+
+  return queueBleAdvertiserOperation('start-broadcast', async operationId => {
     BLEAdvertiser.setCompanyId(OFFLINK_COMPANY_ID);
 
-    await BLEAdvertiser.stopBroadcast().catch(() => {});
+    console.log(
+      'OFFLINK_BROADCAST_PRESTOP',
+      JSON.stringify({operationId, userId: profile.userId}),
+    );
+    await BLEAdvertiser.stopBroadcast().catch(error =>
+      console.log(
+        'OFFLINK_BROADCAST_PRESTOP_ERROR',
+        JSON.stringify({operationId, error: String(error)}),
+      ),
+    );
+
+    console.log(
+      'OFFLINK_BROADCAST_NATIVE_START',
+      JSON.stringify({operationId, userId: profile.userId}),
+    );
 
     await BLEAdvertiser.broadcast(
       OFFLINK_SERVICE_UUID,
@@ -211,6 +268,11 @@ export async function startBleBroadcast(
         includeDeviceName: false,
         includeTxPowerLevel: false,
       },
+    );
+
+    console.log(
+      'OFFLINK_BROADCAST_STARTED',
+      JSON.stringify({operationId, userId: profile.userId}),
     );
   });
 }
@@ -224,8 +286,14 @@ export async function startBleBroadcastTest(): Promise<void> {
 }
 
 export async function stopBleBroadcastTest(): Promise<void> {
-  return queueBleAdvertiserOperation(async () => {
+  console.log('OFFLINK_BROADCAST_STOP_REQUESTED');
+
+  return queueBleAdvertiserOperation('stop-broadcast', async operationId => {
     await BLEAdvertiser.stopBroadcast();
+    console.log(
+      'OFFLINK_BROADCAST_STOPPED',
+      JSON.stringify({operationId}),
+    );
   });
 }
 
@@ -233,6 +301,8 @@ export async function stopBleBroadcastTest(): Promise<void> {
 export function startOfflinkScan(
   onUserFound: (user: NearbyOfflinkUser) => void,
 ): () => void {
+  console.log('OFFLINK_SCAN_NATIVE_START');
+
   bleManager.startDeviceScan(null, null, (error, device) => {
     if (error) {
       console.log('OFFLINK_SCAN_ERROR', String(error));
@@ -268,6 +338,7 @@ export function startOfflinkScan(
   });
 
   return () => {
+    console.log('OFFLINK_SCAN_NATIVE_STOP');
     bleManager.stopDeviceScan();
   };
 }
