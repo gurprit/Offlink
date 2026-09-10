@@ -6,8 +6,40 @@ const PROFILE_KEY = 'offlink_profile';
 const FRIENDS_KEY = 'offlink_friends';
 const SIGHTINGS_KEY = 'offlink_sightings';
 
+const profileChangeListeners = new Set<(profile: OfflinkProfile) => void>();
+
+export function subscribeToProfileChanges(
+  listener: (profile: OfflinkProfile) => void,
+): () => void {
+  profileChangeListeners.add(listener);
+
+  return () => {
+    profileChangeListeners.delete(listener);
+  };
+}
+
+function notifyProfileChanged(profile: OfflinkProfile) {
+  console.log(
+    'OFFLINK_PROFILE_CHANGED',
+    JSON.stringify({userId: profile.userId, meshId: profile.meshId}),
+  );
+
+  profileChangeListeners.forEach(listener => {
+    try {
+      listener(profile);
+    } catch (error) {
+      console.log('OFFLINK_PROFILE_CHANGE_LISTENER_ERROR', String(error));
+    }
+  });
+}
+
 export async function loadProfile(): Promise<OfflinkProfile | null> {
   const raw = await AsyncStorage.getItem(PROFILE_KEY);
+
+  console.log(
+    'OFFLINK_PROFILE_LOAD',
+    JSON.stringify({hasProfile: Boolean(raw)}),
+  );
 
   if (!raw) {
     return null;
@@ -16,6 +48,13 @@ export async function loadProfile(): Promise<OfflinkProfile | null> {
   const parsed = JSON.parse(raw) as Partial<OfflinkProfile>;
 
   if (!parsed.userId || !parsed.emoji) {
+    console.log(
+      'OFFLINK_PROFILE_LOAD_INVALID',
+      JSON.stringify({
+        hasUserId: Boolean(parsed.userId),
+        hasEmoji: Boolean(parsed.emoji),
+      }),
+    );
     return null;
   }
 
@@ -30,20 +69,46 @@ export async function loadProfile(): Promise<OfflinkProfile | null> {
   };
 
   if (profile.meshId !== parsed.meshId) {
+    console.log(
+      'OFFLINK_PROFILE_MESH_ID_CREATED',
+      JSON.stringify({userId: profile.userId, meshId: profile.meshId}),
+    );
     await saveProfile(profile);
   }
+
+  console.log(
+    'OFFLINK_PROFILE_LOAD_SUCCESS',
+    JSON.stringify({userId: profile.userId, meshId: profile.meshId}),
+  );
 
   return profile;
 }
 
 export async function saveProfile(profile: OfflinkProfile): Promise<void> {
-  await AsyncStorage.setItem(
-    PROFILE_KEY,
+  const profileToSave = {
+    ...profile,
+    meshId: ensureMeshId(profile.meshId),
+  };
+
+  console.log(
+    'OFFLINK_PROFILE_SAVE_START',
     JSON.stringify({
-      ...profile,
-      meshId: ensureMeshId(profile.meshId),
+      userId: profileToSave.userId,
+      meshId: profileToSave.meshId,
     }),
   );
+
+  await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(profileToSave));
+
+  console.log(
+    'OFFLINK_PROFILE_SAVE_SUCCESS',
+    JSON.stringify({
+      userId: profileToSave.userId,
+      meshId: profileToSave.meshId,
+    }),
+  );
+
+  notifyProfileChanged(profileToSave);
 }
 
 export async function loadFriends(): Promise<OfflinkFriend[]> {
@@ -65,6 +130,14 @@ export async function loadFriends(): Promise<OfflinkFriend[]> {
 }
 
 export async function saveFriends(friends: OfflinkFriend[]): Promise<void> {
+  console.log(
+    'OFFLINK_FRIENDS_SAVE',
+    JSON.stringify({
+      count: friends.length,
+      userIds: friends.map(friend => friend.userId),
+    }),
+  );
+
   await AsyncStorage.setItem(FRIENDS_KEY, JSON.stringify(friends));
 }
 
