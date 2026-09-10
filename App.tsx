@@ -7,7 +7,14 @@ import {SightingsScreen} from './src/screens/SightingsScreen';
 import {MapScreen} from './src/screens/MapScreen';
 import {MeshDiagnosticsScreen} from './src/screens/MeshDiagnosticsScreen';
 import {NearbyOfflinkUser, OfflinkFriend, OfflinkSighting} from './src/models/types';
-import {loadFriends, loadProfile, loadSightings, saveFriends, saveSightings} from './src/services/StorageService';
+import {
+  loadFriends,
+  loadProfile,
+  loadSightings,
+  saveFriends,
+  saveSightings,
+  subscribeToProfileChanges,
+} from './src/services/StorageService';
 import {
   startBleBroadcast,
   startOfflinkScan,
@@ -317,38 +324,21 @@ export default function App() {
   }, [permissionRestartKey]);
 
   useEffect(() => {
-    if (ownUserId) {
-      return;
-    }
+    return subscribeToProfileChanges(profile => {
+      console.log(
+        'OFFLINK_PROFILE_CHANGE_RECEIVED',
+        JSON.stringify({userId: profile.userId, meshId: profile.meshId}),
+      );
 
-    let cancelled = false;
-    let restartRequested = false;
-
-    const profileWatcher = setInterval(() => {
-      if (restartRequested) {
-        return;
-      }
-
-      loadProfile()
-        .then(profile => {
-          if (cancelled || restartRequested || !profile) {
-            return;
-          }
-
-          restartRequested = true;
-          setBleStatus('Preparing Offlink...');
-          setPermissionRestartKey(current => current + 1);
-        })
-        .catch(error =>
-          console.log('OFFLINK_PROFILE_WATCH_ERROR', String(error)),
-        );
-    }, 500);
-
-    return () => {
-      cancelled = true;
-      clearInterval(profileWatcher);
-    };
-  }, [ownUserId]);
+      ownUserIdRef.current = profile.userId;
+      ownMeshIdRef.current = profile.meshId;
+      setOwnUserId(profile.userId);
+      setOwnMeshId(profile.meshId);
+      setLocalMeshId(profile.meshId);
+      setBleStatus('Preparing Offlink...');
+      setPermissionRestartKey(current => current + 1);
+    });
+  }, []);
 
   async function handleEnableOfflink() {
     setBleStatus('Requesting Android permissions...');
