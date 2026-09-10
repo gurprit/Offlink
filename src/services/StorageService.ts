@@ -6,6 +6,33 @@ const PROFILE_KEY = 'offlink_profile';
 const FRIENDS_KEY = 'offlink_friends';
 const SIGHTINGS_KEY = 'offlink_sightings';
 
+const profileChangeListeners = new Set<(profile: OfflinkProfile) => void>();
+
+export function subscribeToProfileChanges(
+  listener: (profile: OfflinkProfile) => void,
+): () => void {
+  profileChangeListeners.add(listener);
+
+  return () => {
+    profileChangeListeners.delete(listener);
+  };
+}
+
+function notifyProfileChanged(profile: OfflinkProfile) {
+  console.log(
+    'OFFLINK_PROFILE_CHANGED',
+    JSON.stringify({userId: profile.userId, meshId: profile.meshId}),
+  );
+
+  profileChangeListeners.forEach(listener => {
+    try {
+      listener(profile);
+    } catch (error) {
+      console.log('OFFLINK_PROFILE_CHANGE_LISTENER_ERROR', String(error));
+    }
+  });
+}
+
 export async function loadProfile(): Promise<OfflinkProfile | null> {
   const raw = await AsyncStorage.getItem(PROFILE_KEY);
 
@@ -80,6 +107,8 @@ export async function saveProfile(profile: OfflinkProfile): Promise<void> {
       meshId: profileToSave.meshId,
     }),
   );
+
+  notifyProfileChanged(profileToSave);
 }
 
 export async function loadFriends(): Promise<OfflinkFriend[]> {
