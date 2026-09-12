@@ -7,8 +7,9 @@ import {OfflinkLocation} from '../services/LocationService';
 
 const VIEW_SIZE = 360;
 const ORIGIN_X = VIEW_SIZE / 2;
-const ORIGIN_Y = 324;
-const MAX_RADIUS = 282;
+const ORIGIN_Y = 322;
+const MAX_RADIUS = 156;
+const MIN_RADIUS = 34;
 const RADAR_RANGE_METRES = 100;
 
 function toRadians(value: number): number {
@@ -53,13 +54,12 @@ function bearingDegrees(
   const lat1 = toRadians(fromLat);
   const lat2 = toRadians(toLat);
   const deltaLon = toRadians(toLon - fromLon);
-
   const y = Math.sin(deltaLon) * Math.cos(lat2);
   const x =
     Math.cos(lat1) * Math.sin(lat2) -
     Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
 
-  return (Math.atan2(y, x) * 180) / Math.PI + 360 % 360;
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
 function formatDistance(distance: number): string {
@@ -116,14 +116,14 @@ export function FriendRadar({
         const relativeBearing = normaliseAngle(absoluteBearing - heading);
         const behind = Math.abs(relativeBearing) > 90;
         const displayBearing = Math.max(-90, Math.min(90, relativeBearing));
-        const distanceRatio = Math.min(distance, RADAR_RANGE_METRES) / RADAR_RANGE_METRES;
-        const radius = 52 + distanceRatio * (MAX_RADIUS - 52);
+        const distanceRatio =
+          Math.min(distance, RADAR_RANGE_METRES) / RADAR_RANGE_METRES;
+        const radius = MIN_RADIUS + distanceRatio * (MAX_RADIUS - MIN_RADIUS);
         const angle = toRadians(displayBearing);
 
         return {
           ...sighting,
           distance,
-          relativeBearing,
           behind,
           x: ORIGIN_X + Math.sin(angle) * radius,
           y: ORIGIN_Y - Math.cos(angle) * radius,
@@ -143,95 +143,38 @@ export function FriendRadar({
 
       <View style={styles.radarFrame}>
         <Svg width="100%" height="100%" viewBox={`0 0 ${VIEW_SIZE} ${VIEW_SIZE}`}>
-          <Path
-            d={`M 18 ${ORIGIN_Y} A ${MAX_RADIUS} ${MAX_RADIUS} 0 0 1 ${VIEW_SIZE - 18} ${ORIGIN_Y}`}
-            fill="none"
-            stroke="#333333"
-            strokeWidth="2"
-          />
-          <Path
-            d={`M 74 ${ORIGIN_Y} A 106 106 0 0 1 286 ${ORIGIN_Y}`}
-            fill="none"
-            stroke="#252525"
-            strokeWidth="1.5"
-          />
-          <Path
-            d={`M 46 ${ORIGIN_Y} A 134 134 0 0 1 314 ${ORIGIN_Y}`}
-            fill="none"
-            stroke="#252525"
-            strokeWidth="1.5"
-          />
-          <Path
-            d={`M 20 ${ORIGIN_Y} A 160 160 0 0 1 340 ${ORIGIN_Y}`}
-            fill="none"
-            stroke="#252525"
-            strokeWidth="1.5"
-          />
+          <Path d={`M 24 ${ORIGIN_Y} A 156 156 0 0 1 336 ${ORIGIN_Y}`} fill="none" stroke="#333333" strokeWidth="2" />
+          <Path d={`M 63 ${ORIGIN_Y} A 117 117 0 0 1 297 ${ORIGIN_Y}`} fill="none" stroke="#252525" strokeWidth="1.5" />
+          <Path d={`M 102 ${ORIGIN_Y} A 78 78 0 0 1 258 ${ORIGIN_Y}`} fill="none" stroke="#252525" strokeWidth="1.5" />
+          <Path d={`M 141 ${ORIGIN_Y} A 39 39 0 0 1 219 ${ORIGIN_Y}`} fill="none" stroke="#252525" strokeWidth="1.5" />
 
-          <Line x1={ORIGIN_X} y1={ORIGIN_Y} x2={ORIGIN_X} y2="36" stroke="#242424" strokeWidth="1" />
-          <Line x1={ORIGIN_X} y1={ORIGIN_Y} x2="28" y2={ORIGIN_Y} stroke="#242424" strokeWidth="1" />
-          <Line x1={ORIGIN_X} y1={ORIGIN_Y} x2="332" y2={ORIGIN_Y} stroke="#242424" strokeWidth="1" />
+          <Line x1={ORIGIN_X} y1={ORIGIN_Y} x2={ORIGIN_X} y2="154" stroke="#242424" strokeWidth="1" />
+          <Line x1={ORIGIN_X} y1={ORIGIN_Y} x2="24" y2={ORIGIN_Y} stroke="#242424" strokeWidth="1" />
+          <Line x1={ORIGIN_X} y1={ORIGIN_Y} x2="336" y2={ORIGIN_Y} stroke="#242424" strokeWidth="1" />
 
-          <SvgText x="180" y="28" fill="#8b5cf6" fontSize="11" fontWeight="900" textAnchor="middle">
-            AHEAD
-          </SvgText>
-          <SvgText x="80" y="214" fill="#666666" fontSize="9" fontWeight="700" textAnchor="middle">
-            50m
-          </SvgText>
-          <SvgText x="42" y="98" fill="#666666" fontSize="9" fontWeight="700" textAnchor="middle">
-            100m
-          </SvgText>
+          <SvgText x="180" y="148" fill="#8b5cf6" fontSize="11" fontWeight="900" textAnchor="middle">AHEAD</SvgText>
+          <SvgText x="77" y="236" fill="#666666" fontSize="9" fontWeight="700" textAnchor="middle">75m</SvgText>
+          <SvgText x="118" y="277" fill="#666666" fontSize="9" fontWeight="700" textAnchor="middle">50m</SvgText>
+          <SvgText x="151" y="307" fill="#666666" fontSize="9" fontWeight="700" textAnchor="middle">25m</SvgText>
 
           {radarFriends.map(friend => {
             const close = friend.distance < 10;
             const veryClose = friend.distance < 5;
-            const labelY = Math.max(18, friend.y - 24);
-            const key = `${friend.userId}-${friend.updatedAt}`;
+            const labelY = Math.max(18, friend.y - 25);
 
             return (
-              <React.Fragment key={key}>
+              <React.Fragment key={`${friend.userId}-${friend.updatedAt}`}>
                 {close ? (
-                  <Circle
-                    cx={friend.x}
-                    cy={friend.y}
-                    r={veryClose ? 25 : 21}
-                    fill="rgba(139,92,246,0.16)"
-                    stroke="#8b5cf6"
-                    strokeWidth="2"
-                  />
+                  <Circle cx={friend.x} cy={friend.y} r={veryClose ? 25 : 21} fill="rgba(139,92,246,0.16)" stroke="#8b5cf6" strokeWidth="2" />
                 ) : null}
-                <Circle
-                  cx={friend.x}
-                  cy={friend.y}
-                  r={close ? 17 : 13}
-                  fill="#ffffff"
-                  stroke={friend.behind ? '#666666' : '#8b5cf6'}
-                  strokeWidth="3"
-                />
-                <SvgText
-                  x={friend.x}
-                  y={friend.y + 6}
-                  fill="#050505"
-                  fontSize={close ? '18' : '14'}
-                  textAnchor="middle">
+                <Circle cx={friend.x} cy={friend.y} r={close ? 17 : 13} fill="#ffffff" stroke={friend.behind ? '#666666' : '#8b5cf6'} strokeWidth="3" />
+                <SvgText x={friend.x} y={friend.y + 6} fill="#050505" fontSize={close ? '18' : '14'} textAnchor="middle">
                   {friend.emoji || '●'}
                 </SvgText>
-                <SvgText
-                  x={friend.x}
-                  y={labelY}
-                  fill="#ffffff"
-                  fontSize="10"
-                  fontWeight="900"
-                  textAnchor="middle">
+                <SvgText x={friend.x} y={labelY} fill="#ffffff" fontSize="10" fontWeight="900" textAnchor="middle">
                   {(friend.displayName || friend.userId).slice(0, 14)}
                 </SvgText>
-                <SvgText
-                  x={friend.x}
-                  y={labelY + 12}
-                  fill={veryClose ? '#ffffff' : '#8b5cf6'}
-                  fontSize="9"
-                  fontWeight="900"
-                  textAnchor="middle">
+                <SvgText x={friend.x} y={labelY + 12} fill={veryClose ? '#ffffff' : '#8b5cf6'} fontSize="9" fontWeight="900" textAnchor="middle">
                   {friend.behind ? `BEHIND · ${formatDistance(friend.distance)}` : formatDistance(friend.distance)}
                 </SvgText>
               </React.Fragment>
@@ -240,9 +183,7 @@ export function FriendRadar({
 
           <Circle cx={ORIGIN_X} cy={ORIGIN_Y} r="22" fill="#050505" stroke="#ffffff" strokeWidth="3" />
           <Path d={`M ${ORIGIN_X} ${ORIGIN_Y - 14} L ${ORIGIN_X - 7} ${ORIGIN_Y + 5} L ${ORIGIN_X} ${ORIGIN_Y + 1} L ${ORIGIN_X + 7} ${ORIGIN_Y + 5} Z`} fill="#ffffff" />
-          <SvgText x={ORIGIN_X} y={ORIGIN_Y + 38} fill="#ffffff" fontSize="10" fontWeight="900" textAnchor="middle">
-            YOU
-          </SvgText>
+          <SvgText x={ORIGIN_X} y={ORIGIN_Y + 36} fill="#ffffff" fontSize="10" fontWeight="900" textAnchor="middle">YOU</SvgText>
         </Svg>
 
         {!currentLocation ? (
@@ -259,32 +200,22 @@ export function FriendRadar({
       </View>
 
       <Text style={styles.footer}>
-        Radar range {RADAR_RANGE_METRES}m · friends beyond the range sit on the outer edge
+        100m close-range radar · friends farther away sit on the outer edge
       </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    flex: 1,
-  },
+  wrap: {flex: 1},
   headingRow: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 10,
   },
-  headingLabel: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  headingHint: {
-    color: '#777777',
-    fontSize: 11,
-    fontWeight: '700',
-  },
+  headingLabel: {color: '#ffffff', fontSize: 13, fontWeight: '900'},
+  headingHint: {color: '#777777', fontSize: 11, fontWeight: '700'},
   radarFrame: {
     backgroundColor: '#0a0a0a',
     borderColor: '#2f2f2f',
@@ -306,11 +237,7 @@ const styles = StyleSheet.create({
     right: 24,
     top: 60,
   },
-  emptyTitle: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '900',
-  },
+  emptyTitle: {color: '#ffffff', fontSize: 16, fontWeight: '900'},
   emptyText: {
     color: '#aaaaaa',
     fontSize: 12,
