@@ -1,5 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {
+  Pressable,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -7,12 +8,11 @@ import {
 } from 'react-native';
 import {Button} from '../components/Button';
 import {FriendMap} from '../components/FriendMap';
+import {FriendRadar} from '../components/FriendRadar';
 import {OfflinkFriend, OfflinkSighting} from '../models/types';
 import {OfflinkLocation} from '../services/LocationService';
 
-function normaliseOfflinkId(value: string): string {
-  return value.trim().toUpperCase();
-}
+type MapMode = 'map' | 'radar';
 
 export function MapScreen({
   sightings,
@@ -26,63 +26,99 @@ export function MapScreen({
   onBack: () => void;
 }) {
   const [now, setNow] = useState(Date.now());
+  const [mode, setMode] = useState<MapMode>('map');
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
+  const friendIds = useMemo(
+    () => new Set(friends.map(friend => friend.userId.trim().toUpperCase())),
+    [friends],
+  );
+
   const friendSightings = useMemo(
     () =>
       sightings.filter(
         sighting =>
+          friendIds.has(sighting.userId.trim().toUpperCase()) &&
           typeof sighting.latitude === 'number' &&
           typeof sighting.longitude === 'number' &&
           now - sighting.lastSeenAt < 1000 * 60 * 60,
       ),
-    [sightings, now],
+    [sightings, friendIds, now],
   );
-
-  const centerCoordinate: [number, number] = currentLocation
-    ? [currentLocation.longitude, currentLocation.latitude]
-    : friendSightings[0]?.longitude && friendSightings[0]?.latitude
-      ? [friendSightings[0].longitude, friendSightings[0].latitude]
-      : [-0.1276, 51.5072];
 
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.kicker}>Offlink Map</Text>
-          <Text style={styles.title}>Friends nearby</Text>
+          <Text style={styles.kicker}>Offlink Finder</Text>
+          <Text style={styles.title}>
+            {mode === 'map' ? 'Friends nearby' : 'Close-range radar'}
+          </Text>
         </View>
+      </View>
 
+      <View style={styles.tabBar}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{selected: mode === 'map'}}
+          onPress={() => setMode('map')}
+          style={[styles.tab, mode === 'map' && styles.tabActive]}>
+          <Text style={[styles.tabText, mode === 'map' && styles.tabTextActive]}>
+            MAP
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{selected: mode === 'radar'}}
+          onPress={() => setMode('radar')}
+          style={[styles.tab, mode === 'radar' && styles.tabActive]}>
+          <Text style={[styles.tabText, mode === 'radar' && styles.tabTextActive]}>
+            RADAR
+          </Text>
+        </Pressable>
       </View>
 
       <View style={styles.statsRow}>
         <View style={styles.statPill}>
           <Text style={styles.statValue}>{friendSightings.length}</Text>
-          <Text style={styles.statLabel}>friend pins</Text>
+          <Text style={styles.statLabel}>friends</Text>
         </View>
         <View style={styles.statPill}>
           <Text style={styles.statValue}>{sightings.length}</Text>
-          <Text style={styles.statLabel}>total sightings</Text>
+          <Text style={styles.statLabel}>sightings</Text>
         </View>
         <View style={styles.statPill}>
           <Text style={styles.statValue}>
-            {currentLocation ? `±${Math.round(currentLocation.accuracy || 0)}m` : '...'}
+            {currentLocation
+              ? `±${Math.round(currentLocation.accuracy || 0)}m`
+              : '...'}
           </Text>
           <Text style={styles.statLabel}>GPS</Text>
         </View>
       </View>
 
-      <FriendMap
-        friendSightings={friendSightings}
-        currentLocation={currentLocation}
-      />
+      <View style={styles.content}>
+        {mode === 'map' ? (
+          <FriendMap
+            friendSightings={friendSightings}
+            currentLocation={currentLocation}
+          />
+        ) : (
+          <FriendRadar
+            friendSightings={friendSightings}
+            currentLocation={currentLocation}
+          />
+        )}
+      </View>
 
       <Text style={styles.helper}>
-        Online test map for now · offline map tiles come later
+        {mode === 'map'
+          ? 'Map for the wider area · switch to Radar when you get close'
+          : 'Direction uses your phone compass · distance uses the latest Offlink location'}
       </Text>
 
       <Button label="Back" onPress={onBack} />
@@ -100,7 +136,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   kicker: {
     color: '#8b5cf6',
@@ -115,10 +151,38 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginTop: 2,
   },
+  tabBar: {
+    backgroundColor: '#101010',
+    borderColor: '#2a2a2a',
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 4,
+    marginBottom: 12,
+    padding: 4,
+  },
+  tab: {
+    alignItems: 'center',
+    borderRadius: 12,
+    flex: 1,
+    paddingVertical: 10,
+  },
+  tabActive: {
+    backgroundColor: '#8b5cf6',
+  },
+  tabText: {
+    color: '#777777',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  tabTextActive: {
+    color: '#ffffff',
+  },
   statsRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 14,
+    marginBottom: 12,
   },
   statPill: {
     backgroundColor: '#111',
@@ -141,126 +205,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
     textTransform: 'uppercase',
   },
-  mapWrap: {
+  content: {
     flex: 1,
-    borderRadius: 28,
-    overflow: 'hidden',
-    backgroundColor: '#111',
-    borderColor: '#333',
-    borderWidth: 1,
-  },
-  map: {
-    flex: 1,
-  },
-  youMarker: {
-    alignItems: 'center',
-    backgroundColor: '#050505',
-    borderColor: '#ffffff',
-    borderRadius: 18,
-    borderWidth: 3,
-    height: 48,
-    justifyContent: 'center',
-    width: 48,
-  },
-  youMarkerText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  sightingMarker: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 92,
-    minWidth: 140,
-  },
-  friendPinEmoji: {
-    backgroundColor: '#ffffff',
-    borderColor: '#8b5cf6',
-    borderRadius: 28,
-    borderWidth: 4,
-    color: '#050505',
-    fontSize: 34,
-    height: 64,
-    lineHeight: 56,
-    overflow: 'hidden',
-    textAlign: 'center',
-    width: 64,
-  },
-  friendPinLabel: {
-    backgroundColor: '#050505',
-    borderColor: '#8b5cf6',
-    borderRadius: 12,
-    borderWidth: 2,
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '900',
-    marginTop: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  friendAvatar: {
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderColor: '#8b5cf6',
-    borderRadius: 30,
-    borderWidth: 4,
-    height: 60,
-    justifyContent: 'center',
-    width: 60,
-  },
-  friendAvatarText: {
-    color: '#050505',
-    fontSize: 31,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-  friendCard: {
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    marginTop: 5,
-    minWidth: 104,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  friendName: {
-    color: '#050505',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  friendMeta: {
-    color: '#8b5cf6',
-    fontSize: 10,
-    fontWeight: '900',
-    marginTop: 1,
-  },
-  emptyOverlay: {
-    backgroundColor: 'rgba(5,5,5,0.84)',
-    borderColor: '#333',
-    borderRadius: 22,
-    borderWidth: 1,
-    left: 22,
-    padding: 18,
-    position: 'absolute',
-    right: 22,
-    top: 22,
-  },
-  emptyTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  emptyText: {
-    color: '#bbb',
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
-    marginTop: 6,
   },
   helper: {
     color: '#888',
     fontSize: 13,
+    marginTop: 12,
     textAlign: 'center',
-    marginTop: 14,
   },
 });
